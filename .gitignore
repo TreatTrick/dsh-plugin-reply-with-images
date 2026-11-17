@@ -1,0 +1,8 @@
+node_modules/
+lib/
+*.tgz
+coverage/
+.preview/
+.impeccable/
+preview.html
+docs/preview-*.jpg

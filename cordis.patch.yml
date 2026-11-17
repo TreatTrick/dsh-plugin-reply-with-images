@@ -1,0 +1,3 @@
+- insert:
+    - id: reply-with-images
+      name: dsh-plugin-reply-with-images

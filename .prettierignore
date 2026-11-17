@@ -1,0 +1,8 @@
+node_modules/
+lib/
+coverage/
+.preview/
+.impeccable/
+package-lock.json
+docs/plans/
+preview.html
