@@ -8,18 +8,18 @@ it('falls back from Wikimedia and Baidu failures to mainland results without dup
   const read: HttpRead = async (url) => {
     calls.push(url)
     if (url.includes('wikimedia')) throw new Error('Network unavailable')
-    if (url.includes('baidu')) throw new Error('限流')
+    if (url.includes('baidu')) throw new Error('Rate limited')
     return {
       data: Buffer.from(
         JSON.stringify({
           list: [
             {
-              title: '荷花',
+              title: 'Lotus',
               thumb: 'https://p2.ssl.qhimgs1.com/a.jpg',
               link: 'https://example.com/a',
             },
             {
-              title: '重复',
+              title: 'Duplicate',
               thumb: 'https://p2.ssl.qhimgs1.com/a.jpg',
               link: 'https://example.com/a',
             },
@@ -29,7 +29,7 @@ it('falls back from Wikimedia and Baidu failures to mainland results without dup
       contentType: 'application/json',
     }
   }
-  const result = await searchImages('荷花', {
+  const result = await searchImages('Lotus', {
     config: resolveConfig({ maxCandidates: 1 }),
     read,
     signal: new AbortController().signal,
@@ -43,7 +43,7 @@ it('falls back from Wikimedia and Baidu failures to mainland results without dup
   expect(new URL(calls[0]!).hostname).toBe('commons.wikimedia.org')
 })
 
-it('候选去重后不足上限继续搜索，并逐项应用同源网络约束', async () => {
+it('continues searching below the deduplicated candidate limit and applies provider-specific network constraints', async () => {
   const visited: string[] = []
   const read: HttpRead = async (url, _signal, options) => {
     visited.push(url)
@@ -55,49 +55,49 @@ it('候选去重后不足上限继续搜索，并逐项应用同源网络约束'
         data: Buffer.from(
           JSON.stringify({
             list: [1, 2].map(() => ({
-              title: '荷花',
+              title: 'Lotus',
               thumb: 'https://p2.ssl.qhimgs1.com/a.jpg',
               link: 'https://example.com/a',
             })),
           }),
         ),
       }
-    return { contentType: 'text/html', data: Buffer.from('<html>验证码</html>') }
+    return { contentType: 'text/html', data: Buffer.from('<html>CAPTCHA</html>') }
   }
-  const result = await searchImages('荷花 & 花', {
+  const result = await searchImages('Lotus & flower', {
     config: resolveConfig({ providers: ['so360', 'bing'] }),
     read,
     signal: new AbortController().signal,
   })
   expect(result.images).toHaveLength(1)
   expect(result.warnings).toEqual([expect.stringContaining('bing')])
-  expect(new URL(visited[1]!).searchParams.get('q')).toBe('荷花 & 花')
+  expect(new URL(visited[1]!).searchParams.get('q')).toBe('Lotus & flower')
 })
 
-it('Wikimedia 只有显式配置时才请求，取消时不会继续回退', async () => {
+it('queries Wikimedia only when configured and stops fallback on cancellation', async () => {
   const controller = new AbortController()
   const read = vi.fn<HttpRead>(async (url) => {
     expect(new URL(url).hostname).toBe('commons.wikimedia.org')
-    controller.abort(new Error('停止搜索'))
+    controller.abort(new Error('Search stopped'))
     throw controller.signal.reason
   })
   await expect(
-    searchImages('荷花', {
+    searchImages('Lotus', {
       config: resolveConfig({ providers: ['wikimedia', 'bing'] }),
       read,
       signal: controller.signal,
     }),
-  ).rejects.toThrow('停止搜索')
+  ).rejects.toThrow('Search stopped')
   expect(read).toHaveBeenCalledOnce()
 })
 
-it('依赖抛出的 AbortError 保持取消语义，不转换为来源失败', async () => {
-  const error = new DOMException('请求被取消', 'AbortError')
+it('preserves cancellation when a dependency throws AbortError instead of treating it as provider failure', async () => {
+  const error = new DOMException('Request canceled', 'AbortError')
   const read = vi.fn<HttpRead>(async () => {
     throw error
   })
   await expect(
-    searchImages('荷花', { config: resolveConfig(), read, signal: new AbortController().signal }),
+    searchImages('Lotus', { config: resolveConfig(), read, signal: new AbortController().signal }),
   ).rejects.toBe(error)
   expect(read).toHaveBeenCalledOnce()
 })

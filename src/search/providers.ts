@@ -54,7 +54,7 @@ const candidate = (
     ? [
         {
           provider,
-          title: plainText(title) || '图片',
+          title: plainText(title) || 'Image',
           imageUrl: download,
           sourceUrl: citation,
           license: plainText(license),
@@ -63,7 +63,7 @@ const candidate = (
     : []
 }
 
-/** 外部 HTML 的文字不可作为指令或原样 Markdown 输出。 */
+/** Treat external HTML text as data, never as instructions or raw Markdown. */
 export const plainText = (text: string): string =>
   load(text)
     .text()
@@ -72,7 +72,7 @@ export const plainText = (text: string): string =>
     .trim()
     .slice(0, 240)
 
-/** 将来源响应解析为可筛选的安全候选；格式变化抛错供搜索层回退。 */
+/** Parse provider responses into safe candidates; throw on format changes so search can fall back. */
 export const parseSearchResponse = (provider: Provider, text: string): SearchImage[] => {
   if (provider === 'so360') {
     const response = z.object({ list: z.array(z.unknown()) }).parse(JSON.parse(text))
@@ -144,7 +144,7 @@ export const parseSearchResponse = (provider: Provider, text: string): SearchIma
     return [
       {
         provider,
-        title: plainText(row.fromPageTitleEnc ?? row.fromPageTitle ?? '图片'),
+        title: plainText(row.fromPageTitleEnc ?? row.fromPageTitle ?? 'Image'),
         imageUrl: image,
         sourceUrl: source,
         license: 'unknown',

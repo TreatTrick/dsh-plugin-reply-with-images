@@ -14,14 +14,14 @@ const escapeHtml = (value: string) =>
   )
 const examples = [
   {
-    query: '荷花',
-    title: '荷花：先看叶片有没有离开水面',
-    text: '荷花的成熟叶片和花朵常常挺出水面。辨认时先看整体生长姿态，再结合叶片和莲蓬判断，通常比只看花色更可靠。',
+    query: 'lotus',
+    title: 'Lotus: look for leaves above the water',
+    text: 'Mature lotus leaves and flowers often rise above the water. Start with the overall growth habit, then check the leaves and seed pods; this is usually more reliable than flower color alone.',
   },
   {
-    query: '睡莲',
-    title: '睡莲：叶片通常浮在水面',
-    text: '睡莲的叶片通常贴着水面展开，叶缘可见通向叶柄的缺口。两者都能开出粉色或白色的花，因此颜色适合作为辅助线索。',
+    query: 'water lily',
+    title: 'Water lily: leaves usually float on the surface',
+    text: 'Water-lily leaves usually spread across the surface, with a notch leading toward the leaf stalk. Both plants can have pink or white flowers, so color is only a supporting clue.',
   },
 ]
 const ctx = new Context()
@@ -58,15 +58,15 @@ try {
     if (!found.images[0]) throw new Error(`${example.query}: ${found.warnings.join('; ')}`)
     const result = await service.embed(
       scope,
-      [{ candidateId: found.images[0].candidateId }],
+      [{ candidateId: found.images[0].candidateId, alt: example.query }],
       new AbortController().signal,
     )
     const image = result.images[0]
     if (!image) throw new Error(result.warnings.join('; '))
     const dataUrl = dataUrls.get(image.attachmentId)
-    if (!dataUrl) throw new Error('预览附件未读取')
+    if (!dataUrl) throw new Error('Preview attachment was not read')
     sections.push(
-      `<section class="answer-section"><h2>${index + 1}. ${escapeHtml(example.title)}</h2><p>${escapeHtml(example.text)}</p><figure><button class="image-open" aria-label="放大${escapeHtml(example.query)}图片"><img src="${dataUrl}" alt="搜索结果：${escapeHtml(image.title)}" decoding="async" /></button><figcaption>图片来源：<a href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(new URL(image.sourceUrl).hostname)}</a><span> · ${image.license === 'unknown' ? '许可未确认' : escapeHtml(image.license)}</span></figcaption></figure></section>`,
+      `<section class="answer-section"><h2>${index + 1}. ${escapeHtml(example.title)}</h2><p>${escapeHtml(example.text)}</p><figure><button class="image-open" aria-label="Enlarge ${escapeHtml(example.query)} image"><img src="${dataUrl}" alt="Search result: ${escapeHtml(example.query)}" decoding="async" /></button><figcaption>Image source: <a href="${escapeHtml(image.sourceUrl)}" target="_blank" rel="noreferrer">${escapeHtml(new URL(image.sourceUrl).hostname)}</a><span> · ${image.license === 'unknown' ? 'License unconfirmed' : escapeHtml(image.license)}</span></figcaption></figure></section>`,
     )
     evidence.push({ query: example.query, candidate: found.images[0], result })
   }
@@ -77,7 +77,7 @@ try {
   await writeFile(new URL('preview.html', root), html)
   await writeFile(new URL('.preview/evidence.json', root), `${JSON.stringify(evidence, null, 2)}\n`)
   process.stdout.write(
-    '已生成 preview.html：使用真实搜图、官方附件保存和读取的图片；诊断保存在 .preview/evidence.json\n',
+    'Generated preview.html using live image search and the official attachment store; diagnostics saved to .preview/evidence.json\n',
   )
 } finally {
   await service.dispose()

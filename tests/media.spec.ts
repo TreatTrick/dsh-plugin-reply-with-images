@@ -10,7 +10,7 @@ const ref: ImageAttachmentRef = {
   height: 1,
 }
 
-it('从保存的 Markdown URL 重建图片引用，重新创建路由仍可读取', async () => {
+it('reconstructs image references from saved Markdown URLs and reads them through a recreated route', async () => {
   const readImage = vi.fn(async (value: ImageAttachmentRef) => ({
     ref: value,
     data: Uint8Array.of(1, 2, 3),
@@ -30,34 +30,37 @@ it('从保存的 Markdown URL 重建图片引用，重新创建路由仍可读�
 it.each([
   ['ATTACHMENT_NOT_FOUND', 404],
   ['ATTACHMENT_READ_FAILED', 409],
-] as const)('附件后端错误 %s 返回 %s 并禁止缓存', async (code, status) => {
-  const resource = createMediaResource({
-    readImage: async () => {
-      throw new AttachmentError('读取失败', code)
-    },
-  })
-  const response = await resource(new Request(mediaUrl('https://example.com', ref)))
-  expect(response.status).toBe(status)
-  expect(response.headers.get('cache-control')).toBe('private, no-store')
-})
+] as const)(
+  'returns attachment backend error %s as HTTP %s and disables caching',
+  async (code, status) => {
+    const resource = createMediaResource({
+      readImage: async () => {
+        throw new AttachmentError('Read failed', code)
+      },
+    })
+    const response = await resource(new Request(mediaUrl('https://example.com', ref)))
+    expect(response.status).toBe(status)
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  },
+)
 
-it('附件服务意外故障和取消信号继续传播', async () => {
+it('propagates unexpected attachment failures and cancellation', async () => {
   const resource = createMediaResource({
     readImage: async () => {
-      throw new Error('磁盘故障')
+      throw new Error('Disk failure')
     },
   })
   await expect(resource(new Request(mediaUrl('https://example.com', ref)))).rejects.toThrow(
-    '磁盘故障',
+    'Disk failure',
   )
   const controller = new AbortController()
-  controller.abort(new Error('关闭请求'))
+  controller.abort(new Error('Request closed'))
   await expect(
     resource(new Request(mediaUrl('https://example.com', ref), { signal: controller.signal })),
-  ).rejects.toThrow('关闭请求')
+  ).rejects.toThrow('Request closed')
 })
 
-it('拒绝篡改的类型、无效 ID、尺寸和错误方法', async () => {
+it('rejects tampered types, invalid IDs, dimensions, and incorrect methods', async () => {
   const readImage = vi.fn()
   const resource = createMediaResource({ readImage })
   for (const query of [

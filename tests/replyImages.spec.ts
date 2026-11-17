@@ -20,7 +20,7 @@ const read: HttpRead = async (url) =>
         data: Buffer.from(
           JSON.stringify({
             list: [1, 2, 3].map((id) => ({
-              title: `荷花 ${id}`,
+              title: `Lotus ${id}`,
               thumb: `https://p2.ssl.qhimgs1.com/${id}.jpg`,
               link: 'https://example.com/lotus',
             })),
@@ -39,9 +39,9 @@ beforeEach(() => {
   saveImage.mockClear()
 })
 
-it('搜图、保存和正文 Markdown 保持来源信息并阻止第三张图片', async () => {
+it('preserves attribution through search, saving, and inline Markdown while blocking a third image', async () => {
   const service = setup()
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const result = await service.embed(
     scope,
     found.images.slice(0, 2).map((row) => ({ candidateId: row.candidateId })),
@@ -50,53 +50,56 @@ it('搜图、保存和正文 Markdown 保持来源信息并阻止第三张图片
   expect(result.images).toHaveLength(2)
   expect(result.markdown).toContain('https://harness.example/api/reply-images?')
   expect(result.markdown).toContain('example.com')
-  expect(result.markdown).toContain('许可未确认')
+  expect(result.markdown).toContain('License unconfirmed')
   await expect(
     service.embed(scope, [{ candidateId: found.images[2]!.candidateId }], signal()),
   ).rejects.toMatchObject({ code: 'REPLY_IMAGES_BUDGET_EXCEEDED' })
 })
 
-it('部分下载失败保留成功图片，全部失败返回文字降级诊断', async () => {
+it('keeps successful images after partial failure and returns text-fallback diagnostics when all fail', async () => {
   const service = setup(async (url, abort, options) => {
-    if (url.includes('/1.jpg')) throw new Error('图片失效')
+    if (url.includes('/1.jpg')) throw new Error('Image unavailable')
     return read(url, abort, options)
   })
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const result = await service.embed(scope, found.images.slice(0, 2), signal())
   expect(result.images).toHaveLength(1)
   expect(result.warnings).toHaveLength(1)
   const unavailable = setup(async (url, abort, options) =>
     url.includes('image.so.com')
       ? read(url, abort, options)
-      : Promise.reject(new Error('下载失败')),
+      : Promise.reject(new Error('Download failed')),
   )
-  const candidates = await unavailable.search(scope, '荷花', signal())
+  const candidates = await unavailable.search(scope, 'Lotus', signal())
   expect(await unavailable.embed(scope, candidates.images.slice(0, 1), signal())).toMatchObject({
     images: [],
     markdown: '',
-    warnings: [expect.stringContaining('下载失败')],
+    warnings: [expect.stringContaining('Download failed')],
   })
 })
 
-it('取消继续传播，不产生文字降级或新附件写入', async () => {
+it('propagates cancellation without text fallback or new attachment writes', async () => {
   const service = setup()
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const controller = new AbortController()
-  controller.abort(new Error('用户停止'))
+  controller.abort(new Error('Stopped by user'))
   const count = saveImage.mock.calls.length
   await expect(service.embed(scope, found.images.slice(0, 1), controller.signal)).rejects.toThrow(
-    '用户停止',
+    'Stopped by user',
   )
   expect(saveImage.mock.calls).toHaveLength(count)
 })
 
-it.each(['', '   ', '字'.repeat(201)])('无效搜索词在访问网络前被拒绝：%s', async (query) => {
-  const reader = vi.fn<HttpRead>(read)
-  await expect(setup(reader).search(scope, query, signal())).rejects.toMatchObject({
-    code: 'INVALID_ARGS',
-  })
-  expect(reader).not.toHaveBeenCalled()
-})
+it.each(['', '   ', 'x'.repeat(201)])(
+  'rejects invalid search queries before network access: %s',
+  async (query) => {
+    const reader = vi.fn<HttpRead>(read)
+    await expect(setup(reader).search(scope, query, signal())).rejects.toMatchObject({
+      code: 'INVALID_ARGS',
+    })
+    expect(reader).not.toHaveBeenCalled()
+  },
+)
 
 it.each([
   ['PNG', '89504e470d0a1a0a', 'image/png'],
@@ -105,31 +108,31 @@ it.each([
   ['GIF87a', '474946383761', 'image/gif'],
   ['GIF89a', '474946383961', 'image/gif'],
 ])(
-  '缺少正确 Content-Type 时从 %s 文件头推断格式并交给附件服务校验',
+  'infers format from %s signatures when Content-Type is missing or wrong, then validates through attachments',
   async (_name, hex, mediaType) => {
     const service = setup(async (url, abort, options) =>
       url.includes('image.so.com')
         ? read(url, abort, options)
         : { contentType: 'application/octet-stream', data: Buffer.from(hex, 'hex') },
     )
-    const found = await service.search(scope, '荷花', signal())
+    const found = await service.search(scope, 'Lotus', signal())
     expect((await service.embed(scope, found.images.slice(0, 1), signal())).images).toHaveLength(1)
     expect(saveImage).toHaveBeenCalledWith(expect.objectContaining({ mediaType }))
   },
 )
 
-it('验证码 HTML 不能作为图片保存，失败候选不能重复下载', async () => {
+it('rejects CAPTCHA HTML as an image and prevents repeated downloads of failed candidates', async () => {
   const service = setup(async (url, abort, options) =>
     url.includes('image.so.com')
       ? read(url, abort, options)
       : { contentType: 'text/html', data: Buffer.from('<html>captcha</html>') },
   )
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const selected = found.images.slice(0, 1)
   expect(await service.embed(scope, selected, signal())).toMatchObject({
     images: [],
     markdown: '',
-    warnings: [expect.stringContaining('格式')],
+    warnings: [expect.stringContaining('format')],
   })
   expect(saveImage).not.toHaveBeenCalled()
   await expect(service.embed(scope, selected, signal())).rejects.toMatchObject({
@@ -137,7 +140,7 @@ it('验证码 HTML 不能作为图片保存，失败候选不能重复下载', a
   })
 })
 
-it('许可、作者和自定义替代文本被保留，Markdown 元字符不会创建新图片', async () => {
+it('preserves licenses, authors, and custom alt text without letting Markdown metacharacters create images', async () => {
   const service = new ReplyImages(resolveConfig({ providers: ['wikimedia'] }), {
     attachments: { saveImage },
     baseUrl: () => 'https://harness.example/',
@@ -158,7 +161,7 @@ it('许可、作者和自定义替代文本被保留，Markdown 元字符不会�
                           thumburl: 'https://upload.wikimedia.org/lotus.jpg',
                           descriptionurl: 'https://commons.wikimedia.org/wiki/File:Lotus.jpg',
                           extmetadata: {
-                            Artist: { value: '<b>摄影者</b>' },
+                            Artist: { value: '<b>Photographer</b>' },
                             LicenseShortName: { value: 'CC BY-SA 4.0' },
                             LicenseUrl: {
                               value: 'https://creativecommons.org/licenses/by-sa/4.0/',
@@ -175,20 +178,20 @@ it('许可、作者和自定义替代文本被保留，Markdown 元字符不会�
         : { contentType: 'image/png', data: imageBytes }
     },
   })
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const result = await service.embed(
     scope,
-    [{ candidateId: found.images[0]!.candidateId, alt: '<b>荷花</b> [示例] !' }],
+    [{ candidateId: found.images[0]!.candidateId, alt: '<b>Lotus</b> [Example] !' }],
     signal(),
   )
-  expect(result.markdown).toContain('![荷花 \\[示例\\] \\!]')
+  expect(result.markdown).toContain('![Lotus \\[Example\\] \\!]')
   expect(result.markdown).toContain(
-    '摄影者 · [CC BY-SA 4.0](<https://creativecommons.org/licenses/by-sa/4.0/>)',
+    'Photographer · [CC BY-SA 4.0](<https://creativecommons.org/licenses/by-sa/4.0/>)',
   )
   expect(found.images[0]).not.toHaveProperty('imageUrl')
 })
 
-it('并发展示先占用预算，不会重复下载同一个候选', async () => {
+it('reserves budgets before concurrent embedding and avoids duplicate candidate downloads', async () => {
   let release = () => {}
   const gate = new Promise<void>((resolve) => {
     release = resolve
@@ -198,7 +201,7 @@ it('并发展示先占用预算，不会重复下载同一个候选', async () =
     return read(url, abort, options)
   })
   const service = setup(reader)
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const selected = found.images.slice(0, 1)
   const first = service.embed(scope, selected, signal())
   await expect(service.embed(scope, selected, signal())).rejects.toMatchObject({
@@ -209,23 +212,23 @@ it('并发展示先占用预算，不会重复下载同一个候选', async () =
   expect(reader).toHaveBeenCalledTimes(2)
 })
 
-it('卸载取消进行中的搜索并拒绝后续操作', async () => {
+it('cancels active searches on unload and rejects subsequent operations', async () => {
   const service = setup(
     async (_url, abort) =>
       new Promise((_resolve, reject) => {
         abort.addEventListener('abort', () => reject(abort.reason), { once: true })
       }),
   )
-  const pending = service.search(scope, '荷花', signal())
+  const pending = service.search(scope, 'Lotus', signal())
   const rejected = expect(pending).rejects.toMatchObject({ code: 'REPLY_IMAGES_CLOSED' })
   await service.dispose()
   await rejected
-  await expect(service.search(scope, '荷花', signal())).rejects.toMatchObject({
+  await expect(service.search(scope, 'Lotus', signal())).rejects.toMatchObject({
     code: 'REPLY_IMAGES_CLOSED',
   })
 })
 
-it('卸载等待已经开始的附件写入结束，取消后不会发布 Markdown', async () => {
+it('drains attachment writes on unload and does not publish Markdown after cancellation', async () => {
   let release = () => {}
   let started = () => {}
   const gate = new Promise<void>((resolve) => {
@@ -245,7 +248,7 @@ it('卸载等待已经开始的附件写入结束，取消后不会发布 Markdo
       },
     },
   })
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const pending = service.embed(scope, found.images.slice(0, 1), signal())
   const rejected = expect(pending).rejects.toMatchObject({ code: 'REPLY_IMAGES_CLOSED' })
   await saving
@@ -261,17 +264,17 @@ it('卸载等待已经开始的附件写入结束，取消后不会发布 Markdo
   expect(saveImage).toHaveBeenCalledOnce()
 })
 
-it('清理 Agent 后旧候选不能继续展示', async () => {
+it('prevents embedding old candidates after Agent cleanup', async () => {
   const service = setup()
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   service.clear(scope.owner)
   await expect(service.embed(scope, found.images.slice(0, 1), signal())).rejects.toMatchObject({
     code: 'REPLY_IMAGES_CANDIDATE_INVALID',
   })
 })
 
-it('附件后端抛出的 AbortError 继续传播，不作为普通图片失败', async () => {
-  const error = new DOMException('保存被取消', 'AbortError')
+it('propagates attachment backend AbortError instead of treating it as an ordinary image failure', async () => {
+  const error = new DOMException('Save canceled', 'AbortError')
   const service = new ReplyImages(resolveConfig({ providers: ['so360'] }), {
     read,
     baseUrl: () => '',
@@ -281,19 +284,21 @@ it('附件后端抛出的 AbortError 继续传播，不作为普通图片失败'
       },
     },
   })
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   await expect(service.embed(scope, found.images.slice(0, 1), signal())).rejects.toBe(error)
 })
 
-it('非 Error 异常被界定为安全的未知失败诊断', async () => {
+it('bounds non-Error exceptions to a safe unknown-error diagnostic', async () => {
   const service = new ReplyImages(resolveConfig({ providers: ['so360'] }), {
     read: async (url, abort, options) =>
-      url.includes('image.so.com') ? read(url, abort, options) : Promise.reject('敏感上游响应'),
+      url.includes('image.so.com')
+        ? read(url, abort, options)
+        : Promise.reject('Sensitive upstream response'),
     baseUrl: () => '',
     attachments: { saveImage },
   })
-  const found = await service.search(scope, '荷花', signal())
+  const found = await service.search(scope, 'Lotus', signal())
   const result = await service.embed(scope, found.images.slice(0, 1), signal())
-  expect(result.warnings).toEqual([expect.stringContaining('未知错误')])
-  expect(result.warnings.join()).not.toContain('敏感上游响应')
+  expect(result.warnings).toEqual([expect.stringContaining('Unknown error')])
+  expect(result.warnings.join()).not.toContain('Sensitive upstream response')
 })

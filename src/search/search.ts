@@ -23,7 +23,7 @@ interface SearchOptions {
   read?: HttpRead
 }
 
-/** 按部署顺序查询；一个来源失败只增加诊断，不阻止其他来源。 */
+/** Query in configured order; a provider failure adds diagnostics without blocking other providers. */
 export const searchImages = async (
   query: string,
   options: SearchOptions,
@@ -49,12 +49,13 @@ export const searchImages = async (
         images.push(image)
         if (images.length === options.config.maxCandidates) return { images, warnings }
       }
-      if (results.length === 0) warnings.push(`${provider}: 暂无可用结果，可能限流或页面格式变化`)
+      if (results.length === 0)
+        warnings.push(`${provider}: No usable results; possible rate limit or page format change`)
     } catch (error) {
       options.signal.throwIfAborted()
       if (error instanceof Error && error.name === 'AbortError') throw error
       warnings.push(
-        `${provider}: 搜索暂不可用（${error instanceof Error ? error.message.slice(0, 160) : '上游错误'}）`,
+        `${provider}: Search temporarily unavailable (${error instanceof Error ? error.message.slice(0, 160) : 'Upstream error'})`,
       )
     }
   }

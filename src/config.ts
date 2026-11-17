@@ -22,7 +22,7 @@ const configSchema = z
   })
   .superRefine((value, context) => {
     if (new Set(value.providers).size !== value.providers.length)
-      context.addIssue({ code: 'custom', message: 'providers 不能重复' })
+      context.addIssue({ code: 'custom', message: 'providers must not contain duplicates' })
     if (value.publicBaseUrl) {
       const parsed = z.url().safeParse(value.publicBaseUrl)
       if (
@@ -35,41 +35,48 @@ const configSchema = z
       ) {
         context.addIssue({
           code: 'custom',
-          message: 'publicBaseUrl 必须是不带凭据、查询或片段的 HTTP(S) 地址',
+          message:
+            'publicBaseUrl must be an HTTP(S) URL without credentials, a query, or a fragment',
         })
       }
     }
   })
 
-/** 部署配置全部在插件加载时校验，不依赖测试专用配置。 */
+/** Validate all deployment settings at plugin load without test-only configuration. */
 export type ResolvedConfig = z.infer<typeof configSchema>
 export type Config = Partial<ResolvedConfig>
 
-/** Cordis 设置面板与 YAML 的配置入口。 */
+/** Configuration entry point for the Cordis settings panel and YAML. */
 export const Config: Schema<Config> = Schema.object({
   providers: Schema.array(Schema.union(['baidu', 'so360', 'bing', 'wikimedia']))
     .default(['wikimedia', 'baidu', 'so360', 'bing'])
     .description(
       'Try Wikimedia with license metadata first, then fall back to mainland and Bing providers',
     ),
-  maxImagesPerTurn: Schema.number().default(2).description('每轮最多展示图片数'),
-  maxSearchesPerTurn: Schema.number().default(2).description('每轮最多搜图次数'),
-  maxCandidates: Schema.number().default(6).description('每次返回候选数'),
-  requestTimeoutMs: Schema.number().default(8000).description('单次网络请求超时毫秒数'),
+  maxImagesPerTurn: Schema.number().default(2).description('Maximum images displayed per turn'),
+  maxSearchesPerTurn: Schema.number().default(2).description('Maximum image searches per turn'),
+  maxCandidates: Schema.number().default(6).description('Maximum candidates returned per search'),
+  requestTimeoutMs: Schema.number()
+    .default(8000)
+    .description('Timeout per network request in milliseconds'),
   maxImageBytes: Schema.number()
     .default(5 * 1024 * 1024)
-    .description('单张下载图片字节上限'),
+    .description('Maximum downloaded image size in bytes'),
   maxSearchBytes: Schema.number()
     .default(3 * 1024 * 1024)
-    .description('搜索响应字节上限'),
-  automatic: Schema.boolean().default(true).description('在图片有助于理解时主动配图'),
+    .description('Maximum search response size in bytes'),
+  automatic: Schema.boolean()
+    .default(true)
+    .description('Add images automatically when they aid understanding'),
   allowFakeIpDns: Schema.boolean()
     .default(false)
-    .description('兼容代理 Fake-IP DNS，仅额外允许 198.18.0.0/15 和 2001:2::/48'),
+    .description(
+      'Support proxy Fake-IP DNS by additionally allowing only 198.18.0.0/15 and 2001:2::/48',
+    ),
   publicBaseUrl: Schema.string()
     .default('')
-    .description('浏览器访问 Harness 的地址，反向代理部署时填写'),
+    .description('Browser-facing Harness URL for reverse-proxy deployments'),
 })
 
-/** 解析完整配置，并拒绝重复图源和无效的上限。 */
+/** Resolve the full configuration, rejecting duplicate providers and invalid limits. */
 export const resolveConfig = (value: Config = {}): ResolvedConfig => configSchema.parse(value)

@@ -22,6 +22,6 @@ it.each([
   { publicBaseUrl: 'file:///tmp' },
   { publicBaseUrl: 'https://user:password@example.com' },
   { publicBaseUrl: 'https://example.com?token=secret' },
-])('加载时拒绝无效配置 %j', (invalid) => {
+])('rejects invalid configuration at load time: %j', (invalid) => {
   expect(() => resolveConfig(invalid as Parameters<typeof resolveConfig>[0])).toThrow()
 })

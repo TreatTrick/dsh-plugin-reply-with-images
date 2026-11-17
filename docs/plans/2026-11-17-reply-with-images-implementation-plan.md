@@ -10,7 +10,7 @@
 
 ### Task 1: Package and design assets
 
-**Status:** Complete. Added the bundle manifest, strict TS build, offline test setup, localized usage/maintenance documentation, and a real-search preview generated through the official attachment backend. Preview photographs stay in the source checkout and are excluded from the installable tarball.
+**Status:** Complete. Added the bundle manifest, strict TS build, offline test setup, English usage/maintenance documentation, and a real-search preview generated through the official attachment backend. Preview photographs stay in the source checkout and are excluded from the installable tarball.
 
 **Files:** `package.json`, `cordis.patch.yml`, `tsconfig.json`, `tsdown.config.ts`, `docs/plans/*`, `preview.html`.
 

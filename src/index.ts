@@ -9,13 +9,13 @@ import { createMediaResource, MEDIA_PATH } from './media.js'
 import { ReplyImages } from './replyImages.js'
 import { registerImageTools } from './tools.js'
 
-/** 独立配图插件，只通过官方服务注册能力。 */
+/** Standalone image plugin that registers capabilities through official services only. */
 export const name = 'reply-with-images'
 export const inject = ['agents', 'tools', 'systemPrompt', 'attachments', 'connection', 'webServer']
 export const Config = ConfigSchema
 export type Config = PluginConfig
 
-/** 注册模型指导、工具和受官方 Connection 认证的图片路由。 */
+/** Register model guidance, tools, and an image route authenticated by the official Connection service. */
 export function apply(ctx: Context, config: PluginConfig = {}): void {
   const resolved = resolveConfig(config)
   const profile: unknown = ctx.get('profileContext')

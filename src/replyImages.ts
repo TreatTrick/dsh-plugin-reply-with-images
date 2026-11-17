@@ -12,7 +12,7 @@ import { plainText } from './search/providers.js'
 import { searchImages } from './search/search.js'
 import { imageUrl } from './search/urls.js'
 
-/** 存储及网络是核心流程唯一的外部依赖。 */
+/** Storage and network access are the only external dependencies of the core workflow. */
 export interface ReplyImagesDependencies {
   attachments: Pick<AttachmentStore, 'saveImage'>
   baseUrl: () => string
@@ -56,7 +56,7 @@ const mediaTypeOf = (type: string, data: Uint8Array): ImageMediaType | undefined
 }
 const escapeText = (value: string): string => plainText(value).replace(/[\\`*_{}\[\]<>~!]/g, '\\$&')
 
-/** 搜索、候选预算及图片保存；关闭时取消网络并等待已开始的写入结束。 */
+/** Search, manage candidate budgets, and save images; cancel network access and drain writes on shutdown. */
 export class ReplyImages {
   private readonly candidates = new CandidateStore()
   private readonly shutdown = new AbortController()
@@ -75,7 +75,7 @@ export class ReplyImages {
     operation: (signal: AbortSignal) => Promise<T>,
   ): Promise<T> {
     if (this.shutdown.signal.aborted)
-      throw new ReplyImagesError('配图插件已卸载。', 'REPLY_IMAGES_CLOSED')
+      throw new ReplyImagesError('The image plugin has been unloaded.', 'REPLY_IMAGES_CLOSED')
     const combined = AbortSignal.any([signal, this.shutdown.signal])
     combined.throwIfAborted()
     const work = operation(combined)
@@ -87,11 +87,12 @@ export class ReplyImages {
     }
   }
 
-  /** 按有限次数搜图，候选只对当前 Agent 的当前轮次有效。 */
+  /** Limit searches and keep candidates scoped to the current Agent and turn. */
   search(scope: ReplyScope, query: string, signal: AbortSignal) {
     return this.run(signal, async (abort) => {
       const trimmed = query.trim()
-      if (!trimmed || trimmed.length > 200) throw new ToolArgsError(['搜索词需要 1–200 个字符。'])
+      if (!trimmed || trimmed.length > 200)
+        throw new ToolArgsError(['Search queries must contain 1–200 characters.'])
       this.candidates.reserveSearch(scope, this.config.maxSearchesPerTurn)
       const found = await searchImages(trimmed, {
         config: this.config,
@@ -108,7 +109,7 @@ export class ReplyImages {
     })
   }
 
-  /** 先预留全部图片预算，再按顺序下载和保存；逐张失败通过 warnings 返回。 */
+  /** Reserve the entire image budget before downloading and saving sequentially; report individual failures as warnings. */
   embed(
     scope: ReplyScope,
     selections: readonly ImageSelection[],
@@ -135,7 +136,7 @@ export class ReplyImages {
           })
           abort.throwIfAborted()
           const mediaType = mediaTypeOf(downloaded.contentType, downloaded.data)
-          if (mediaType === undefined) throw new Error('不是支持的图片格式')
+          if (mediaType === undefined) throw new Error('Unsupported image format')
           const ref = await this.dependencies.attachments.saveImage({
             data: downloaded.data,
             mediaType,
@@ -144,13 +145,13 @@ export class ReplyImages {
           abort.throwIfAborted()
           const title = escapeText(selections[index]?.alt?.trim() || candidate.title)
           const licenseText =
-            candidate.license === 'unknown' ? '许可未确认' : escapeText(candidate.license)
+            candidate.license === 'unknown' ? 'License unconfirmed' : escapeText(candidate.license)
           const license = candidate.licenseUrl
             ? `[${licenseText}](<${candidate.licenseUrl}>)`
             : licenseText
           const author = candidate.author ? ` · ${escapeText(candidate.author)}` : ''
           const destination = this.dependencies.imageDestination?.(ref) ?? mediaUrl(baseUrl, ref)
-          const markdown = `![${title}](<${destination}>)\n\n*图片来源：[${new URL(candidate.sourceUrl).hostname}](<${candidate.sourceUrl}>)${author} · ${license}*`
+          const markdown = `![${title}](<${destination}>)\n\n*Image source: [${new URL(candidate.sourceUrl).hostname}](<${candidate.sourceUrl}>)${author} · ${license}*`
           images.push({
             title: candidate.title,
             markdown,
@@ -162,7 +163,7 @@ export class ReplyImages {
           abort.throwIfAborted()
           if (error instanceof Error && error.name === 'AbortError') throw error
           warnings.push(
-            `${candidate.title}: 图片下载或保存失败（${error instanceof Error ? error.message.slice(0, 120) : '未知错误'}）`,
+            `${candidate.title}: Image download or save failed (${error instanceof Error ? error.message.slice(0, 120) : 'Unknown error'})`,
           )
         }
       }
@@ -170,14 +171,16 @@ export class ReplyImages {
     })
   }
 
-  /** Agent 销毁时移除候选，附件仍由 Harness 持久化。 */
+  /** Remove candidates on Agent disposal while Harness retains persisted attachments. */
   clear(owner: object): void {
     this.candidates.clear(owner)
   }
 
-  /** 拒绝新操作，取消网络，并等待附件写入结束。 */
+  /** Reject new operations, cancel network requests, and wait for attachment writes. */
   async dispose(): Promise<void> {
-    this.shutdown.abort(new ReplyImagesError('配图插件已卸载。', 'REPLY_IMAGES_CLOSED'))
+    this.shutdown.abort(
+      new ReplyImagesError('The image plugin has been unloaded.', 'REPLY_IMAGES_CLOSED'),
+    )
     await Promise.allSettled(this.operations)
   }
 }

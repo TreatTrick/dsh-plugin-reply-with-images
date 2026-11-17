@@ -1,6 +1,6 @@
 # DSH Reply with images
 
-English | [中文](README.zh.md)
+Documentation is maintained in English.
 
 An independent TypeScript community bundle that adds relevant real images to DeepSeek Harness answers. It uses official Harness services, with no dependency on third-party DSH search/display plugins. This project owns provider adapters, downloading and candidate handling; ordinary runtime dependencies include Zod, Cheerio and ipaddr.js.
 

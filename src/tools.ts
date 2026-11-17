@@ -10,14 +10,14 @@ import type { ReplyImages } from './replyImages.js'
 const scopeFor = (ctx: Context, execution: ToolRunContext): ReplyScope => {
   const owner = execution.agent
   if (owner === undefined)
-    throw new ToolContextUnavailableError('图片工具需要在 Agent 回答中调用。')
+    throw new ToolContextUnavailableError('Image tools must be called during an Agent response.')
   const boundary = ctx.agents.turnBoundaryOf(owner.session)
   if (boundary.openTurnStartSeq === null)
-    throw new ToolContextUnavailableError('图片工具需要一个正在进行的轮次。')
+    throw new ToolContextUnavailableError('Image tools require an active turn.')
   return { owner, turn: boundary.lastTurn }
 }
 
-/** 将核心配图流程适配为 Harness 原生工具；输出可从会话结果重放。 */
+/** Adapt the core image workflow to native Harness tools with replayable session results. */
 export const registerImageTools = (ctx: Context, service: ReplyImages): void => {
   ctx.tools.register(
     defineTool({
@@ -63,7 +63,7 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
         service.search(scopeFor(ctx, execution), args.query, execution.signal),
       presentCall: (args) => ({
         card: 'generic',
-        title: '搜索配图',
+        title: 'Search images',
         kind: 'search',
         rawInput: args.query,
       }),
@@ -121,9 +121,9 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
         service.embed(scopeFor(ctx, execution), args.candidates, execution.signal),
       presentCall: (args) => ({
         card: 'generic',
-        title: '保存正文配图',
+        title: 'Save inline images',
         kind: 'fetch',
-        rawInput: `${args.candidates.length} 张图片`,
+        rawInput: `${args.candidates.length} image${args.candidates.length === 1 ? '' : 's'}`,
       }),
     }),
   )

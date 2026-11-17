@@ -63,7 +63,7 @@ const mount = (
   return request
 }
 
-it('按分块字节限制读取，保留不带参数的媒体类型', async () => {
+it('limits streamed bytes and preserves media types without parameters', async () => {
   mount(
     (res) => {
       res.write(Buffer.from([1, 2]))
@@ -77,26 +77,26 @@ it('按分块字节限制读取，保留不带参数的媒体类型', async () =
   expect(result.contentType).toBe('image/png')
 })
 
-it.each([true, false])('拒绝响应头或流式数据超限：%s', (declared) => {
+it.each([true, false])('rejects excessive declared or streamed response sizes: %s', (declared) => {
   mount((res) => res.end(Buffer.alloc(5)), 200, declared ? { 'content-length': '5' } : {})
   return expect(
     readHttp('https://img1.baidu.com/a', new AbortController().signal, options),
-  ).rejects.toThrow('大小限制')
+  ).rejects.toThrow('size limit')
 })
 
-it('响应错误被保留，上游非 200 不当作图片', async () => {
+it('preserves response errors and rejects non-200 upstream responses as images', async () => {
   mount((res) => res.end(), 403)
   await expect(
     readHttp('https://img1.baidu.com/a', new AbortController().signal, options),
   ).rejects.toThrow('403')
-  mount((res) => res.destroy(new Error('流中断')))
+  mount((res) => res.destroy(new Error('Stream interrupted')))
   await expect(
     readHttp('https://img1.baidu.com/a', new AbortController().signal, options),
-  ).rejects.toThrow('流中断')
+  ).rejects.toThrow('Stream interrupted')
 })
 
 it.each(['http://127.0.0.1/private', 'https://evil.example/a', 'http://[invalid'])(
-  '重新验证重定向并拒绝无效目的地：%s',
+  'revalidates redirects and rejects invalid destinations: %s',
   (location) => {
     mount((res) => res.end(), 302, { location })
     return expect(
@@ -105,7 +105,7 @@ it.each(['http://127.0.0.1/private', 'https://evil.example/a', 'http://[invalid'
   },
 )
 
-it('允许同源重定向但限制循环次数', async () => {
+it('allows same-origin redirects while limiting loops', async () => {
   const original = response(302, { location: '/b' })
   const next = response(200)
   mocks.get
@@ -137,21 +137,21 @@ it('允许同源重定向但限制循环次数', async () => {
   mount((res) => res.end(), 302, { location: '/loop' })
   await expect(
     readHttp('https://img1.baidu.com/a', new AbortController().signal, options),
-  ).rejects.toThrow('重定向次数')
+  ).rejects.toThrow('upstream redirects')
 })
 
-it('超时销毁请求并清理定时器', async () => {
+it('destroys timed-out requests and clears timers', async () => {
   vi.useFakeTimers()
   const request = new RequestStub()
   mocks.get.mockReturnValue(request)
   const pending = readHttp('https://img1.baidu.com/a', new AbortController().signal, options)
-  const assertion = expect(pending).rejects.toThrow('超时')
+  const assertion = expect(pending).rejects.toThrow('timed out')
   await vi.advanceTimersByTimeAsync(100)
   await assertion
   expect(vi.getTimerCount()).toBe(0)
 })
 
-it('DNS 返回混合公网和内网地址时拒绝，避免解析后回到私网', async () => {
+it('rejects mixed public/private DNS results to prevent private-network rebinding', async () => {
   mocks.lookup.mockImplementation(
     (
       _host: string,
@@ -167,58 +167,61 @@ it('DNS 返回混合公网和内网地址时拒绝，避免解析后回到私网
     const request = new RequestStub()
     queueMicrotask(() =>
       requestOptions.lookup('img1.baidu.com', { all: true }, (error) =>
-        request.destroy(error ?? new Error('DNS 应拒绝')),
+        request.destroy(error ?? new Error('DNS should reject')),
       ),
     )
     return request
   })
   await expect(
     readHttp('https://img1.baidu.com/a', new AbortController().signal, options),
-  ).rejects.toThrow('内网')
+  ).rejects.toThrow('private network')
 })
 
-it.each([true, false])('成功 DNS 只将已校验的地址交给 HTTPS 连接（all=%s）', async (all) => {
-  const addresses = [
-    { address: '8.8.8.8', family: 4 },
-    { address: '2606:4700:4700::1111', family: 6 },
-  ]
-  mocks.lookup.mockImplementation(
-    (
-      _host: string,
-      _options: object,
-      callback: (error: Error | null, values: DnsAddress[]) => void,
-    ) => callback(null, addresses),
-  )
-  mocks.get.mockImplementation(
-    (
-      _url: string,
-      requestOptions: RequestOptions,
-      callback: (res: ReturnType<typeof response>) => void,
-    ) => {
-      const request = new RequestStub()
-      queueMicrotask(() =>
-        requestOptions.lookup('img1.baidu.com', { all }, (error, result, family) => {
-          expect(error).toBeNull()
-          expect(result).toEqual(all ? addresses : '8.8.8.8')
-          expect(family).toBe(all ? undefined : 4)
-          const res = response()
-          res.once('close', () => request.emit('close'))
-          callback(res)
-          res.end(Buffer.from([1]))
-        }),
-      )
-      return request
-    },
-  )
-  expect(
-    (await readHttp('https://img1.baidu.com/a', new AbortController().signal, options)).data,
-  ).toEqual(Buffer.from([1]))
-})
+it.each([true, false])(
+  'passes only validated DNS addresses to HTTPS connections (all=%s)',
+  async (all) => {
+    const addresses = [
+      { address: '8.8.8.8', family: 4 },
+      { address: '2606:4700:4700::1111', family: 6 },
+    ]
+    mocks.lookup.mockImplementation(
+      (
+        _host: string,
+        _options: object,
+        callback: (error: Error | null, values: DnsAddress[]) => void,
+      ) => callback(null, addresses),
+    )
+    mocks.get.mockImplementation(
+      (
+        _url: string,
+        requestOptions: RequestOptions,
+        callback: (res: ReturnType<typeof response>) => void,
+      ) => {
+        const request = new RequestStub()
+        queueMicrotask(() =>
+          requestOptions.lookup('img1.baidu.com', { all }, (error, result, family) => {
+            expect(error).toBeNull()
+            expect(result).toEqual(all ? addresses : '8.8.8.8')
+            expect(family).toBe(all ? undefined : 4)
+            const res = response()
+            res.once('close', () => request.emit('close'))
+            callback(res)
+            res.end(Buffer.from([1]))
+          }),
+        )
+        return request
+      },
+    )
+    expect(
+      (await readHttp('https://img1.baidu.com/a', new AbortController().signal, options)).data,
+    ).toEqual(Buffer.from([1]))
+  },
+)
 
-it('DNS 解析错误继续传播且不执行响应处理', async () => {
+it('propagates DNS resolution errors without handling a response', async () => {
   mocks.lookup.mockImplementation(
     (_host: string, _options: object, callback: (error: Error, values: DnsAddress[]) => void) =>
-      callback(new Error('DNS 故障'), []),
+      callback(new Error('DNS failure'), []),
   )
   mocks.get.mockImplementation((_url: string, requestOptions: RequestOptions) => {
     const request = new RequestStub()
@@ -229,5 +232,5 @@ it('DNS 解析错误继续传播且不执行响应处理', async () => {
   })
   await expect(
     readHttp('https://img1.baidu.com/a', new AbortController().signal, options),
-  ).rejects.toThrow('DNS 故障')
+  ).rejects.toThrow('DNS failure')
 })

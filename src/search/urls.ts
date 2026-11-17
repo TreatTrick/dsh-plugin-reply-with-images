@@ -8,7 +8,7 @@ const IMAGE_DOMAINS: Record<Provider, readonly string[]> = {
   wikimedia: ['upload.wikimedia.org', 'thumb.wikimedia.org'],
 }
 
-/** 校验公网 HTTP 来源链接，拒绝凭据、内网和特殊协议。 */
+/** Validate public HTTP source links, rejecting credentials, private addresses, and special schemes. */
 export const sourceUrl = (value: string): string | undefined => {
   try {
     const url = new URL(value)
@@ -29,7 +29,7 @@ export const sourceUrl = (value: string): string | undefined => {
   }
 }
 
-/** 限制下载到所属搜索来源的 HTTPS CDN，避免抓取任意网页提供的 URL。 */
+/** Restrict downloads to the provider HTTPS CDN instead of arbitrary URLs from web pages. */
 export const imageUrl = (value: string, provider: Provider): string | undefined => {
   const candidate = sourceUrl(value)
   if (candidate === undefined) return undefined

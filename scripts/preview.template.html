@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>正文配图 · 回答效果预览</title>
+    <title>Inline images · Answer preview</title>
     <style>
       :root {
         color-scheme: light;
@@ -33,7 +33,7 @@
           16px/1.85 system-ui,
           -apple-system,
           'Segoe UI',
-          'Microsoft YaHei',
+          'Arial',
           sans-serif;
       }
       button,
@@ -244,32 +244,39 @@
   <body>
     <header>
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">▧</span>正文配图
-        <span style="color: var(--muted); font-weight: 400">/ 效果预览</span>
+        <span class="brand-mark" aria-hidden="true">▧</span>Inline images
+        <span style="color: var(--muted); font-weight: 400">/ Answer preview</span>
       </div>
-      <button id="theme" type="button" aria-pressed="false">深色模式</button>
+      <button id="theme" type="button" aria-pressed="false">Dark mode</button>
     </header>
     <main>
-      <div class="question">荷花和睡莲怎么区分？请配上图片，直观说明一下。</div>
-      <article aria-label="助手回答示例">
-        <div class="byline"><span class="avatar" aria-hidden="true">✳</span>助手</div>
-        <h1>看叶片，比看花色更容易区分</h1>
+      <div class="question">
+        How can I tell a lotus from a water lily? Please add images for a visual explanation.
+      </div>
+      <article aria-label="Assistant answer example">
+        <div class="byline"><span class="avatar" aria-hidden="true">✳</span>Assistant</div>
+        <h1>Leaves make the distinction easier than flower color</h1>
         <p class="lead">
-          可以先记住两个线索：<strong>荷花常挺出水面，睡莲的叶片通常浮在水面。</strong>下面把对应图片放在说明后，方便对照。
+          Start with two clues:
+          <strong
+            >lotus leaves and flowers often rise above the water, while water-lily leaves usually
+            float on it.</strong
+          >
+          The images below follow each explanation for quick comparison.
         </p>
         {{CONTENT}}
         <p class="tip">
-          <strong>观察小提示</strong
-          >　花色和名称都可能混淆，结合叶片是否浮水、有没有缺口，以及是否出现莲蓬来判断更可靠。
+          <strong>Observation tip</strong> Flower colors and names can be confusing. Check whether
+          the leaves float, whether they have a notch, and whether a lotus seed pod is present.
         </p>
         <div class="footer">
-          <p>回答布局演示 · 图片来自真实搜索<br />点击图片可放大查看</p>
+          <p>Answer layout demo · Images from live search<br />Click an image to zoom</p>
           <p>DSH Reply with images</p>
         </div>
       </article>
     </main>
-    <dialog id="lightbox" aria-label="图片放大预览">
-      <button id="close" type="button">关闭 ✕</button>
+    <dialog id="lightbox" aria-label="Zoomed image preview">
+      <button id="close" type="button">Close ✕</button>
     </dialog>
     <script>
       const theme = document.querySelector('#theme')
@@ -277,7 +284,7 @@
         const dark = theme.getAttribute('aria-pressed') !== 'true'
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         theme.setAttribute('aria-pressed', String(dark))
-        theme.textContent = dark ? '浅色模式' : '深色模式'
+        theme.textContent = dark ? 'Light mode' : 'Dark mode'
       })
       const dialog = document.querySelector('#lightbox')
       document.querySelectorAll('.image-open').forEach((button) =>
@@ -296,6 +303,6 @@
         if (event.target === dialog) dialog.close()
       })
     </script>
-    <!-- 真实生成时间：{{GENERATED_AT}}。此页模拟回答排版，不代表完整模型会话验收。 -->
+    <!-- Generated at {{GENERATED_AT}}. This page demonstrates answer layout, not a full model-session acceptance test. -->
   </body>
 </html>

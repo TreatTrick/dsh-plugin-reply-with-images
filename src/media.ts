@@ -21,7 +21,7 @@ const reference = z.object({
 const fail = (status: number, text: string): Response =>
   new Response(text, { status, headers: { 'Cache-Control': 'private, no-store' } })
 
-/** URL 保存完整的附件校验信息，服务重启后无需内存映射。 */
+/** Store complete attachment validation metadata in the URL so restarts need no in-memory mapping. */
 export const mediaUrl = (baseUrl: string, ref: ImageAttachmentRef): string => {
   const query = new URLSearchParams({
     id: ref.attachmentId,
@@ -33,14 +33,14 @@ export const mediaUrl = (baseUrl: string, ref: ImageAttachmentRef): string => {
   return `${baseUrl.replace(/\/$/, '')}${MEDIA_PATH}?${query}`
 }
 
-/** 由官方 Connection 先认证再调用；读取时再次核验存储内容。 */
+/** Authenticate through the official Connection service before invoking; revalidate stored content on read. */
 export const createMediaResource =
   (store: Pick<AttachmentStore, 'readImage'>) =>
   async (request: Request): Promise<Response> => {
     if (!['GET', 'HEAD'].includes(request.method))
       return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } })
     const parsed = reference.safeParse(Object.fromEntries(new URL(request.url).searchParams))
-    if (!parsed.success) return fail(400, '无效的图片引用')
+    if (!parsed.success) return fail(400, 'Invalid image reference')
     const value = parsed.data
     const ref: ImageAttachmentRef = {
       attachmentId: AttachmentId(value.id),
@@ -63,6 +63,9 @@ export const createMediaResource =
     } catch (error) {
       request.signal.throwIfAborted()
       if (!isAttachmentError(error)) throw error
-      return fail(error.code === 'ATTACHMENT_NOT_FOUND' ? 404 : 409, '图片不存在或校验失败')
+      return fail(
+        error.code === 'ATTACHMENT_NOT_FOUND' ? 404 : 409,
+        'Image not found or validation failed',
+      )
     }
   }

@@ -1,27 +1,27 @@
-# 自动配图插件设计
+# Reply-with-images plugin design
 
-## 目标
+## Goal
 
-为 DeepSeek Harness 新增一个 TypeScript 插件，让助手在有助于理解时搜索真实图片，并把图片插入回答相关段落。默认最多展示两张图；无可靠结果时继续给出纯文字答案。
+Add a TypeScript plugin to DeepSeek Harness that searches for real images when they improve understanding and inserts them beside related answer paragraphs. Display at most two images by default; continue with a text-only answer when no reliable result is available.
 
-## 方案
+## Approach
 
-插件只依赖 Harness 官方 SDK。默认按百度图片、360 图片、必应图片的顺序查询；Wikimedia Commons 是显式可选来源，不参与默认搜索。国内搜索接口是网页端接口而不是稳定的公开关键词 API，因此每个来源单独实现和测试解析，来源失效时允许其他来源返回结果。
+The plugin depends only on the official Harness SDK. It queries Baidu Images, 360 Images, and Bing Images in that order by default; Wikimedia Commons is an explicit optional provider and is excluded from the default search. Mainland search endpoints are web interfaces rather than stable public keyword APIs, so each provider has an independent parser and test suite, and a provider failure can fall back to later providers.
 
-插件提供两个工具：`reply_image_search` 返回含唯一候选 ID、标题、来源页和许可状态的有限候选；`reply_images_embed` 接收候选 ID，下载图片、经 `ctx.attachments.saveImage()` 校验并持久化，再返回可直接插入回答的 Markdown。工具限制每轮搜索与展示的总数，模型负责判断配图价值、筛选候选以及把图片插在对应文字段落。
+The plugin exposes two tools: `reply_image_search` returns a bounded list of candidates with unique IDs, titles, source pages, and license status; `reply_images_embed` accepts candidate IDs, downloads and validates images through `ctx.attachments.saveImage()`, persists them, and returns Markdown ready for the answer. The tools limit total searches and displayed images per turn; the model decides whether images add value, selects candidates, and places them beside the relevant text.
 
-展示 URL 使用经认证的同源 WebServer 路由。路径携带 content-addressed attachment ID、经校验的图片类型和尺寸；请求时调用 `ctx.attachments.readImage()`。这些信息由持久化的 assistant Markdown 保存，因此重载与服务重启后仍可还原图片，不需要进程内图片缓存。
+Display URLs use an authenticated same-origin WebServer route. The path carries a content-addressed attachment ID and validated type and size; requests call `ctx.attachments.readImage()`. The persistent assistant Markdown stores these fields, so images can be reconstructed after reload or restart without an in-memory image cache.
 
-配置提供来源列表、每轮搜索数和图片数。默认来源不含 Wikimedia；明确启用 Wikimedia 时仍按 API 能否访问决定是否返回结果。来源页和作者作为引用信息输出；来源未提供明确许可时标记为未知，不宣称图片可以自由转载。
+Configuration provides the provider list and per-turn search/image limits. Wikimedia is excluded by default; when explicitly enabled, availability still depends on API reachability. Source pages and authors are emitted as attribution; missing license metadata is marked unknown rather than implying free republication.
 
-## 失败处理
+## Failure handling
 
-- 上游源 HTTP 错误、格式变化或超时：忽略该来源本次失败并继续请求后续来源，最终返回空结果。
-- 图片下载、解码或附件存储失败：该候选不可展示；错误返回给模型，原文字回答仍可继续。
-- 缺少或过期候选 ID：工具返回明确的可恢复错误，不猜测或再次下载任意 URL。
-- 无可用搜索源：模型按提示完成纯文字回答。
-- 超过每轮预算：工具层拒绝额外搜索或展示调用。
+- Upstream HTTP errors, format changes, or timeouts: ignore the provider failure, continue with later providers, and ultimately return an empty result.
+- Image download, decoding, or attachment-storage failures: the candidate cannot be displayed; return the error to the model while allowing the original text answer to continue.
+- Missing or expired candidate IDs: return a clear recoverable tool error without guessing or downloading an arbitrary URL.
+- No usable provider: the model follows the prompt and completes a text-only answer.
+- Per-turn budget exceeded: the tool layer rejects additional search or display calls.
 
-## 验证
+## Verification
 
-使用源响应 fixtures 测试百度/360/Bing/Wikimedia 解析、来源去重、候选限量、预算拒绝和图片 URL 校验。用 Harness 附件及 WebServer 服务的测试替身验证 image save/read 路由，并构建 TypeScript bundle。另提供一个静态图文回答预览页，使用实际搜索结果用于手工检查。
+Use provider response fixtures to test Baidu/360/Bing/Wikimedia parsing, source deduplication, candidate limits, budget rejection, and image URL validation. Use Harness attachment and WebServer test doubles to verify image save/read routes, and build the TypeScript bundle. Also provide a static illustrated-answer preview using real search results for manual inspection.

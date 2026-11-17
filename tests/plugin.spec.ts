@@ -29,7 +29,7 @@ const netRead: HttpRead = async (url) =>
         data: Buffer.from(
           JSON.stringify({
             list: [1, 2, 3].map((id) => ({
-              title: `荷花 ${id}`,
+              title: `Lotus ${id}`,
               thumb: `https://p2.ssl.qhimgs1.com/${id}.jpg`,
               link: 'https://example.com/lotus',
             })),
@@ -98,7 +98,7 @@ const fixture = async (
     return result
   }
   const search = () =>
-    execute('reply_image_search', { query: '荷花' }) as ReturnType<ReplyImages['search']>
+    execute('reply_image_search', { query: 'Lotus' }) as ReturnType<ReplyImages['search']>
   const embed = (ids: string[]) =>
     execute('reply_images_embed', {
       candidates: ids.map((candidateId) => ({ candidateId })),
@@ -119,13 +119,13 @@ const fixture = async (
   }
 }
 
-it('真实 Cordis 注册工具、保存附件并返回合法的持久正文 Markdown', async () => {
+it('registers tools through real Cordis, saves attachments, and returns valid persistent inline Markdown', async () => {
   const f = await fixture()
   const found = await f.search()
   const result = await f.embed(found.images.slice(0, 2).map((row) => row.candidateId))
   expect(result.images).toHaveLength(2)
   expect(result.markdown).toContain('https://harness.example/api/reply-images?')
-  expect(result.markdown).toContain('许可未确认')
+  expect(result.markdown).toContain('License unconfirmed')
   expect(f.ctx.attachments.saveImage).toHaveBeenCalledTimes(2)
   expect(f.routes.get('/api/reply-images')?.methods).toEqual(['GET', 'HEAD'])
 })
@@ -154,9 +154,9 @@ it('reports a missing Desktop attachment path without generating an unauthentica
   )
 })
 
-it('没有 Agent 或没有打开的轮次时拒绝搜图', async () => {
+it('rejects image searches without an Agent or an open turn', async () => {
   const f = await fixture()
-  await expect(f.execute('reply_image_search', { query: '荷花' }, null)).rejects.toMatchObject({
+  await expect(f.execute('reply_image_search', { query: 'Lotus' }, null)).rejects.toMatchObject({
     code: 'TOOL_CONTEXT_UNAVAILABLE',
   })
   f.closeTurn()
@@ -164,13 +164,13 @@ it('没有 Agent 或没有打开的轮次时拒绝搜图', async () => {
   expect(readHttp).not.toHaveBeenCalled()
 })
 
-it('工具输出可序列化并重放，调用卡片只依赖输入', async () => {
+it('serializes and replays tool output with call cards that depend only on input', async () => {
   const f = await fixture({ publicBaseUrl: 'https://public.example' })
   const found = await f.search()
   const result = await f.embed([found.images[0]!.candidateId])
   const search = f.ctx.tools.get('reply_image_search')!
   const embed = f.ctx.tools.get('reply_images_embed')!
-  const searchArgs = { query: '荷花' }
+  const searchArgs = { query: 'Lotus' }
   const embedArgs = { candidates: [{ candidateId: found.images[0]!.candidateId }] }
   expect(search.output.render(searchArgs, found)).toEqual([
     { type: 'text', text: JSON.stringify(found) },
@@ -183,15 +183,18 @@ it('工具输出可序列化并重放，调用卡片只依赖输入', async () =
   expect(embed.output.render(embedArgs, renderable)).toEqual([
     { type: 'text', text: JSON.stringify(renderable) },
   ])
-  expect(search.presentCall?.(searchArgs)).toMatchObject({ title: '搜索配图', rawInput: '荷花' })
+  expect(search.presentCall?.(searchArgs)).toMatchObject({
+    title: 'Search images',
+    rawInput: 'Lotus',
+  })
   expect(embed.presentCall?.(embedArgs)).toMatchObject({
-    title: '保存正文配图',
-    rawInput: '1 张图片',
+    title: 'Save inline images',
+    rawInput: '1 image',
   })
   expect(result.markdown).toContain('https://public.example/api/reply-images?')
 })
 
-it('展示预算按张数累计，只有新轮次重新获得预算', async () => {
+it('counts displayed images and resets the budget only for a new turn', async () => {
   const f = await fixture()
   const found = await f.search()
   await f.embed(found.images.slice(0, 2).map((row) => row.candidateId))
@@ -206,7 +209,7 @@ it('展示预算按张数累计，只有新轮次重新获得预算', async () =
   expect((await f.embed([next.images[0]!.candidateId])).images).toHaveLength(1)
 })
 
-it('按配置限制搜索且显式请求模式的提示词不自动搜图', async () => {
+it('limits searches by configuration and disables automatic searches in explicit-request prompts', async () => {
   const f = await fixture({ maxSearchesPerTurn: 1, automatic: false })
   await f.search()
   await expect(f.search()).rejects.toMatchObject({ code: 'REPLY_IMAGES_BUDGET_EXCEEDED' })
@@ -223,7 +226,7 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('Use a concise subject-first search query')
 })
 
-it('工具 schema 拒绝不合法参数', async () => {
+it('rejects invalid arguments through the tool schema', async () => {
   const f = await fixture()
   await expect(f.execute('reply_image_search', { query: 4 })).rejects.toMatchObject({
     code: 'INVALID_ARGS',
@@ -234,16 +237,16 @@ it('工具 schema 拒绝不合法参数', async () => {
   expect(readHttp).not.toHaveBeenCalled()
 })
 
-it('全部来源失败时输出有限诊断并允许纯文字回答', async () => {
+it('returns bounded diagnostics and allows text-only answers when all providers fail', async () => {
   const f = await fixture()
-  vi.mocked(readHttp).mockRejectedValue(new Error('限流'))
+  vi.mocked(readHttp).mockRejectedValue(new Error('Rate limited'))
   expect(await f.search()).toMatchObject({
     images: [],
-    warnings: [expect.stringContaining('限流')],
+    warnings: [expect.stringContaining('Rate limited')],
   })
 })
 
-it('卸载后工具、提示词和媒体路由全部移除', async () => {
+it('removes tools, prompts, and media routes on unload', async () => {
   const f = await fixture()
   expect(f.ctx.tools.get('reply_image_search')).toBeDefined()
   await f.mounted.dispose()

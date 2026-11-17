@@ -2,7 +2,7 @@ import { lookup } from 'node:dns'
 import { get } from 'node:https'
 import ipaddr from 'ipaddr.js'
 
-/** 网络读取结果；上游数据在解析前有字节上限。 */
+/** Network response with a byte limit enforced before parsing upstream data. */
 export interface HttpResult {
   data: Uint8Array
   contentType: string
@@ -19,7 +19,7 @@ export type HttpRead = (
   options: HttpOptions,
 ) => Promise<HttpResult>
 
-/** Fake-IP 仅适用于明确启用的代理 DNS，其他特殊地址始终拒绝。 */
+/** Fake-IP requires an explicit proxy DNS opt-in; other special addresses remain blocked. */
 export const allowedAddress = (address: string, allowFakeIpDns = false): boolean => {
   const parsed = ipaddr.process(address)
   if (parsed.range() === 'unicast') return true
@@ -31,7 +31,7 @@ export const allowedAddress = (address: string, allowFakeIpDns = false): boolean
   )
 }
 
-/** HTTPS 下载固定到经校验的公网 DNS 结果；每次重定向重新验证。 */
+/** Pin HTTPS downloads to validated public DNS results and revalidate every redirect. */
 export const readHttp: HttpRead = async (address, signal, options) => {
   const read = async (url: string, remaining: number): Promise<HttpResult> => {
     signal.throwIfAborted()
@@ -43,12 +43,12 @@ export const readHttp: HttpRead = async (address, signal, options) => {
       target.password ||
       target.port
     )
-      throw new Error('图片来源地址不受支持')
+      throw new Error('Unsupported image source URL')
     if (
       ipaddr.isValid(target.hostname.replace(/^\[|\]$/g, '')) &&
       !allowedAddress(target.hostname.replace(/^\[|\]$/g, ''), options.allowFakeIpDns)
     )
-      throw new Error('拒绝访问内网地址')
+      throw new Error('Access to private network addresses is denied')
     return new Promise((resolve, reject) => {
       const request = get(
         url,
@@ -70,7 +70,7 @@ export const readHttp: HttpRead = async (address, signal, options) => {
                 allowedAddress(value.address, options.allowFakeIpDns),
               )
               if (publicAddresses.length !== addresses.length || publicAddresses.length === 0) {
-                callback(new Error('拒绝访问内网地址'), [])
+                callback(new Error('Access to private network addresses is denied'), [])
                 return
               }
               if (dnsOptions.all) callback(null, publicAddresses)
@@ -84,7 +84,7 @@ export const readHttp: HttpRead = async (address, signal, options) => {
           if ([301, 302, 303, 307, 308].includes(status)) {
             response.resume()
             if (!response.headers.location || remaining === 0) {
-              reject(new Error('上游重定向次数过多'))
+              reject(new Error('Too many upstream redirects'))
               return
             }
             try {
@@ -99,13 +99,13 @@ export const readHttp: HttpRead = async (address, signal, options) => {
           }
           if (status !== 200) {
             response.resume()
-            reject(new Error(`上游返回 HTTP ${status}`))
+            reject(new Error(`Upstream returned HTTP ${status}`))
             return
           }
           const declared = Number(response.headers['content-length'] ?? 0)
           if (declared > options.maxBytes) {
             response.destroy()
-            reject(new Error('响应超过大小限制'))
+            reject(new Error('Response exceeds the size limit'))
             return
           }
           const chunks: Uint8Array[] = []
@@ -113,7 +113,7 @@ export const readHttp: HttpRead = async (address, signal, options) => {
           response.on('data', (chunk: Buffer) => {
             bytes += chunk.byteLength
             if (bytes > options.maxBytes) {
-              response.destroy(new Error('响应超过大小限制'))
+              response.destroy(new Error('Response exceeds the size limit'))
               return
             }
             chunks.push(chunk)
@@ -127,7 +127,7 @@ export const readHttp: HttpRead = async (address, signal, options) => {
         },
       )
       const deadline = setTimeout(
-        () => request.destroy(new Error('网络请求超时')),
+        () => request.destroy(new Error('Network request timed out')),
         options.timeoutMs,
       )
       request.once('close', () => clearTimeout(deadline))

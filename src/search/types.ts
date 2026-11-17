@@ -1,7 +1,7 @@
-/** 搜图来源及供工具筛选的候选信息。 */
+/** Image search providers and candidate metadata for tool selection. */
 export type Provider = 'baidu' | 'so360' | 'bing' | 'wikimedia'
 
-/** 图片只从已知搜索 CDN 下载；sourceUrl 仅用于引用。 */
+/** Download images only from known search CDNs; sourceUrl is for attribution only. */
 export interface SearchImage {
   provider: Provider
   title: string
