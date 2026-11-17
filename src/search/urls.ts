@@ -5,7 +5,7 @@ const IMAGE_DOMAINS: Record<Provider, readonly string[]> = {
   baidu: ['baidu.com', 'bdimg.com'],
   so360: ['qhimgs.com', 'qhimgs1.com', 'qhimg.com'],
   bing: ['bing.net'],
-  wikimedia: ['upload.wikimedia.org'],
+  wikimedia: ['upload.wikimedia.org', 'thumb.wikimedia.org'],
 }
 
 /** 校验公网 HTTP 来源链接，拒绝凭据、内网和特殊协议。 */

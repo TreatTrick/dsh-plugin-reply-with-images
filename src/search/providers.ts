@@ -32,7 +32,13 @@ const bingItem = z.object({ turl: z.string(), purl: z.string(), t: z.string().op
 const wikiInfo = z.object({
   thumburl: z.string(),
   descriptionurl: z.string(),
-  extmetadata: z.record(z.string(), z.object({ value: z.string() })).optional(),
+  extmetadata: z
+    .object({
+      LicenseShortName: z.object({ value: z.string() }).optional(),
+      LicenseUrl: z.object({ value: z.string() }).optional(),
+      Artist: z.object({ value: z.string() }).optional(),
+    })
+    .optional(),
 })
 
 const candidate = (

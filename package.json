@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-reply-with-images",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Search and persist relevant images for DeepSeek Harness replies",
   "type": "module",
   "main": "lib/index.js",

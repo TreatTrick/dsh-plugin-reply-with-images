@@ -14,12 +14,14 @@ Requires Node ≥24.9 and the official `agents`, `tools`, `systemPrompt`, `attac
 npm ci
 npm run check
 npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.0.tgz
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.2.tgz
 dsh --profile web --dump-config
 dsh --profile web
 ```
 
 Use an existing Web-capable profile in place of `web`. This package has not been published to npm. For linked development, build first, then use `dsh plugin --profile web add .`.
+
+For Desktop, fully quit the application, run `plugin --profile desktop add <tarball-path>` with that installation's bundled `dsh`, then reopen Desktop. On Windows, the command is under `resources/runtime/cli/bin/dsh.cmd` in the installation directory. Version `0.1.1` fixes Desktop image authentication; version `0.1.2` enables licensed Wikimedia search by default and accepts its current thumbnail URLs. Generate a new answer after upgrading; existing answer URLs are not migrated.
 
 ## Configure
 
@@ -28,7 +30,7 @@ Override the installed row in your profile's `cordis.patch.yml`:
 ```yaml
 - id: reply-with-images
   config:
-    providers: [baidu, so360, bing]
+    providers: [wikimedia, baidu, so360, bing]
     automatic: true
     maxImagesPerTurn: 2
     maxSearchesPerTurn: 2
@@ -40,19 +42,19 @@ Override the installed row in your profile's `cordis.patch.yml`:
     publicBaseUrl: ''
 ```
 
-Set `automatic: false` to guide the model to search only on explicit image requests. Providers run in order until the candidate limit is met. Wikimedia is optional and disabled by default because access from mainland China is unreliable. All providers can fail or throttle; queries are sent to the configured providers.
+Set `automatic: false` to guide the model to search only on explicit image requests. Wikimedia runs first to provide source license metadata; Baidu, 360, and Bing are fallbacks. If Commons is unreachable from the current network, search continues with the configured providers. All providers can fail or throttle; queries are sent to the configured providers.
 
-Leave `publicBaseUrl` empty to use the official WebServer origin. For remote/reverse-proxy deployments, set the exact browser-facing same-origin URL, including any path prefix, and forward `/api/reply-images` under that prefix to Harness with official authentication. No auth token is embedded in image URLs. Changing the origin/path requires migrating absolute URLs in existing answers; stored attachments remain intact.
+In Web profiles, leave `publicBaseUrl` empty to use the official WebServer origin. For remote/reverse-proxy deployments, set the exact browser-facing same-origin URL, including any path prefix, and forward `/api/reply-images` under that prefix to Harness with official authentication. No auth token is embedded in image URLs. Changing the origin/path requires migrating absolute URLs in existing answers; stored attachments remain intact. Desktop automatically uses provider-owned local image paths through its authenticated native file-image channel, ignoring `publicBaseUrl`; the local attachment backend and client filesystem must refer to the same host.
 
 Enable `allowFakeIpDns` only for a known proxy Fake-IP setup. It additionally allows `198.18.0.0/15` and `2001:2::/48`; all other private addresses remain blocked. Requests use Node HTTPS and do not automatically consume `HTTP_PROXY`/`HTTPS_PROXY`.
 
 ## Behavior and limits
 
-`reply_image_search({ query })` returns current-agent/current-turn candidate IDs and source metadata. `reply_images_embed({ candidates: [{ candidateId, alt? }] })` reserves budget before downloading from known provider CDNs, validates and saves images through `attachments.saveImage()`, and returns Markdown. A registered official Connection route authenticates access and reads through `attachments.readImage()`. The Markdown carries durable attachment reference fields, allowing retrieval after restart.
+`reply_image_search({ query })` returns current-agent/current-turn candidate IDs and source metadata. `reply_images_embed({ candidates: [{ candidateId, alt? }] })` reserves budget before downloading from known provider CDNs, validates and saves images through `attachments.saveImage()`, and returns Markdown. In Web profiles, an official Connection route authenticates access and reads through `attachments.readImage()`, using durable reference fields in the URL. Desktop obtains persistent file paths through `attachments.imageHostPath()` and lets the native `/api/file` channel authenticate and read them. Preserve attachment storage to retain access after restart.
 
-Tool use and placement depend on the model following instructions. Selection uses titles and sources; the plugin does not inspect visual contents or guarantee relevance. Search thumbnails limit resolution. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Disabling the plugin removes its image route; re-enable it with the attachment store preserved to display old images.
+Tool use and placement depend on the model following instructions. Selection uses titles and sources; the plugin does not inspect visual contents or guarantee relevance. Search thumbnails limit resolution. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Disabling the plugin removes its Web image route; re-enable it with the attachment store preserved to display old images. Desktop paths follow the official filesystem access policy and become invalid if attachment storage moves.
 
-Baidu, 360 and Bing use unofficial web endpoints that may change or return CAPTCHAs. Failures return bounded diagnostics and allow text fallback. Unknown image licenses stay marked as unconfirmed: source attribution does not grant republication rights. The MIT license covers code only. Verify image rights before public/commercial reuse.
+Baidu, 360 and Bing use unofficial web endpoints that may change or return CAPTCHAs. Failures return bounded diagnostics and allow text fallback. Unknown image licenses stay marked as unconfirmed; this caption does not block downloads or display. Source attribution does not grant republication rights. The MIT license covers code only. Verify image rights before public/commercial reuse.
 
 ## Develop
 

@@ -28,7 +28,8 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
         query: {
           type: 'string',
           required: true,
-          description: 'A concise search query (1–200 characters).',
+          description:
+            'A concise subject in one language (1–200 characters), e.g. "缅因猫" or "Maine Coon". Avoid mixing translations and many modifiers.',
         },
       },
       output: {

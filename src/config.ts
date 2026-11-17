@@ -5,7 +5,11 @@ const providerSchema = z.enum(['baidu', 'so360', 'bing', 'wikimedia'])
 const positive = z.number().int().positive()
 const configSchema = z
   .object({
-    providers: z.array(providerSchema).min(1).max(4).default(['baidu', 'so360', 'bing']),
+    providers: z
+      .array(providerSchema)
+      .min(1)
+      .max(4)
+      .default(['wikimedia', 'baidu', 'so360', 'bing']),
     maxImagesPerTurn: positive.max(8).default(2),
     maxSearchesPerTurn: positive.max(10).default(2),
     maxCandidates: positive.max(20).default(6),
@@ -44,8 +48,10 @@ export type Config = Partial<ResolvedConfig>
 /** Cordis 设置面板与 YAML 的配置入口。 */
 export const Config: Schema<Config> = Schema.object({
   providers: Schema.array(Schema.union(['baidu', 'so360', 'bing', 'wikimedia']))
-    .default(['baidu', 'so360', 'bing'])
-    .description('按顺序使用的图源；Wikimedia 在大陆可能不可达'),
+    .default(['wikimedia', 'baidu', 'so360', 'bing'])
+    .description(
+      'Try Wikimedia with license metadata first, then fall back to mainland and Bing providers',
+    ),
   maxImagesPerTurn: Schema.number().default(2).description('每轮最多展示图片数'),
   maxSearchesPerTurn: Schema.number().default(2).description('每轮最多搜图次数'),
   maxCandidates: Schema.number().default(6).description('每次返回候选数'),

@@ -39,7 +39,11 @@ const netRead: HttpRead = async (url) =>
       }
     : { data: Buffer.from('89504e470d0a1a0a', 'hex'), contentType: 'image/png' }
 
-const fixture = async (config: Config = {}) => {
+const fixture = async (
+  config: Config = {},
+  profile = 'web',
+  imagePath: string | undefined = undefined,
+) => {
   const ctx = new Context()
   roots.push(ctx)
   const routes = new Map<string, ConnectionFetchRoute>()
@@ -49,7 +53,9 @@ const fixture = async (config: Config = {}) => {
   ctx.provide('attachments', {
     saveImage: vi.fn(async () => ref),
     readImage: vi.fn(async () => ({ ref, data: Uint8Array.of(1, 2, 3) })),
+    imageHostPath: vi.fn(() => imagePath),
   })
+  ctx.provide('profileContext', { name: profile })
   ctx.provide('webServer', { getOrigin: () => 'https://harness.example' })
   ctx.provide('agents', {
     turnBoundaryOf: () => ({ lastTurn: turn, openTurnStartSeq: turnOpen ? turn : null }),
@@ -124,6 +130,30 @@ it('真实 Cordis 注册工具、保存附件并返回合法的持久正文 Mark
   expect(f.routes.get('/api/reply-images')?.methods).toEqual(['GET', 'HEAD'])
 })
 
+it('uses official Desktop attachment paths with native image authentication independent of the Host port', async () => {
+  const path = 'C:\\Users\\Test \u{1f33f} User\\.dsh\\attachments\\cat#100%?.png'
+  const f = await fixture({}, 'desktop', path)
+  const found = await f.search()
+  const result = await f.embed([found.images[0]!.candidateId])
+  expect(result.images).toHaveLength(1)
+  expect(result.markdown).toContain(
+    '(<C:/Users/Test%20%F0%9F%8C%BF%20User/.dsh/attachments/cat%23100%25%3F.png>)',
+  )
+  expect(result.markdown).not.toContain('/api/reply-images')
+  expect(f.ctx.attachments.imageHostPath).toHaveBeenCalledWith(ref)
+})
+
+it('reports a missing Desktop attachment path without generating an unauthenticated link', async () => {
+  const f = await fixture({}, 'desktop')
+  const found = await f.search()
+  const result = await f.embed([found.images[0]!.candidateId])
+  expect(result.images).toEqual([])
+  expect(result.markdown).toBe('')
+  expect(result.warnings[0]).toContain(
+    'Desktop images require a local image path from the attachment provider',
+  )
+})
+
 it('没有 Agent 或没有打开的轮次时拒绝搜图', async () => {
   const f = await fixture()
   await expect(f.execute('reply_image_search', { query: '荷花' }, null)).rejects.toMatchObject({
@@ -183,6 +213,14 @@ it('按配置限制搜索且显式请求模式的提示词不自动搜图', asyn
   expect(vi.mocked(readHttp)).toHaveBeenCalledTimes(1)
   const prompt = (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
   expect(prompt).toContain('only when the user explicitly asks')
+})
+
+it('allows in-chat previews with unknown licenses and preserves the republication warning', async () => {
+  const f = await fixture()
+  const prompt = (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
+  expect(prompt).toContain('Unknown licenses do not prevent an in-chat reference preview')
+  expect(prompt).toContain('Do not claim that an image is licensed for republication')
+  expect(prompt).toContain('Use a concise subject-first search query')
 })
 
 it('工具 schema 拒绝不合法参数', async () => {

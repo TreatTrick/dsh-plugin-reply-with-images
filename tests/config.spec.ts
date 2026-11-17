@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
 import { Config, resolveConfig } from '../src/config.js'
 
-it('默认国内图源、两张图片与有限网络预算，并与 Cordis 配置一致', () => {
+it('defaults to Wikimedia first and retains bounded image and network budgets', () => {
   const config = resolveConfig()
-  expect(config.providers).toEqual(['baidu', 'so360', 'bing'])
+  expect(config.providers).toEqual(['wikimedia', 'baidu', 'so360', 'bing'])
   expect(config.maxImagesPerTurn).toBe(2)
   expect(config.allowFakeIpDns).toBe(false)
   expect(resolveConfig(Config({}))).toEqual(config)

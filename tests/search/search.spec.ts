@@ -3,10 +3,11 @@ import { searchImages } from '../../src/search/search.js'
 import { resolveConfig } from '../../src/config.js'
 import type { HttpRead } from '../../src/http.js'
 
-it('来源失败后回退、去重，并保持 Wikimedia 默认关闭', async () => {
+it('falls back from Wikimedia and Baidu failures to mainland results without duplicates', async () => {
   const calls: string[] = []
   const read: HttpRead = async (url) => {
     calls.push(url)
+    if (url.includes('wikimedia')) throw new Error('Network unavailable')
     if (url.includes('baidu')) throw new Error('限流')
     return {
       data: Buffer.from(
@@ -34,9 +35,12 @@ it('来源失败后回退、去重，并保持 Wikimedia 默认关闭', async ()
     signal: new AbortController().signal,
   })
   expect(result.images).toHaveLength(1)
-  expect(result.warnings[0]).toContain('baidu')
-  expect(calls).toHaveLength(2)
-  expect(calls.join()).not.toContain('wikimedia')
+  expect(result.warnings).toEqual([
+    expect.stringContaining('wikimedia'),
+    expect.stringContaining('baidu'),
+  ])
+  expect(calls).toHaveLength(3)
+  expect(new URL(calls[0]!).hostname).toBe('commons.wikimedia.org')
 })
 
 it('候选去重后不足上限继续搜索，并逐项应用同源网络约束', async () => {

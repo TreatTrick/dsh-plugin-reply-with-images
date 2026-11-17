@@ -189,6 +189,70 @@ describe('搜索结果解析', () => {
     ).toMatchObject([{ license: 'CC BY-SA 4.0', author: '摄影者' }])
   })
 
+  it('accepts current Wikimedia thumbnail hosts and keeps their license metadata', () => {
+    expect(
+      parseSearchResponse(
+        'wikimedia',
+        JSON.stringify({
+          query: {
+            pages: {
+              '1': {
+                title: 'File:Maine Coon.jpg',
+                imageinfo: [
+                  {
+                    thumburl:
+                      'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/b/cat.jpg/960px-cat.jpg',
+                    descriptionurl: 'https://commons.wikimedia.org/wiki/File:Maine_Coon.jpg',
+                    extmetadata: {
+                      LicenseShortName: { value: 'CC BY-SA 4.0' },
+                      LicenseUrl: { value: 'https://creativecommons.org/licenses/by-sa/4.0' },
+                      Artist: { value: '<a>Photographer</a>' },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      ),
+    ).toMatchObject([
+      {
+        title: 'Maine Coon.jpg',
+        imageUrl: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/b/cat.jpg/960px-cat.jpg',
+        license: 'CC BY-SA 4.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0',
+        author: 'Photographer',
+      },
+    ])
+  })
+
+  it('ignores unrelated numeric Commons metadata without dropping a licensed image', () => {
+    expect(
+      parseSearchResponse(
+        'wikimedia',
+        JSON.stringify({
+          query: {
+            pages: {
+              '1': {
+                title: 'File:Maine Coon.jpg',
+                imageinfo: [
+                  {
+                    thumburl: 'https://upload.wikimedia.org/cat.jpg',
+                    descriptionurl: 'https://commons.wikimedia.org/wiki/File:Maine_Coon.jpg',
+                    extmetadata: {
+                      CommonsMetadataExtension: { value: 1.2 },
+                      LicenseShortName: { value: 'Public domain' },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      ),
+    ).toMatchObject([{ license: 'Public domain' }])
+  })
+
   it('拒绝格式损坏响应并过滤不安全图片地址', () => {
     expect(() => parseSearchResponse('baidu', '{broken')).toThrow()
     expect(() => parseSearchResponse('so360', '{}')).toThrow()

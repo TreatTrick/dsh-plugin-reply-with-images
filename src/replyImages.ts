@@ -1,4 +1,8 @@
-import type { AttachmentStore, ImageMediaType } from '@deepseek-ai/dsh-attachment'
+import type {
+  AttachmentStore,
+  ImageAttachmentRef,
+  ImageMediaType,
+} from '@deepseek-ai/dsh-attachment'
 import { ToolArgsError } from '@deepseek-ai/dsh-tools'
 import { CandidateStore, ReplyImagesError, type ReplyScope } from './candidates.js'
 import type { ResolvedConfig } from './config.js'
@@ -12,6 +16,8 @@ import { imageUrl } from './search/urls.js'
 export interface ReplyImagesDependencies {
   attachments: Pick<AttachmentStore, 'saveImage'>
   baseUrl: () => string
+  /** Use a compatible Markdown image destination when the client has a dedicated authentication channel. */
+  imageDestination?: (ref: ImageAttachmentRef) => string
   read?: HttpRead
 }
 export interface ImageSelection {
@@ -143,7 +149,8 @@ export class ReplyImages {
             ? `[${licenseText}](<${candidate.licenseUrl}>)`
             : licenseText
           const author = candidate.author ? ` · ${escapeText(candidate.author)}` : ''
-          const markdown = `![${title}](<${mediaUrl(baseUrl, ref)}>)\n\n*图片来源：[${new URL(candidate.sourceUrl).hostname}](<${candidate.sourceUrl}>)${author} · ${license}*`
+          const destination = this.dependencies.imageDestination?.(ref) ?? mediaUrl(baseUrl, ref)
+          const markdown = `![${title}](<${destination}>)\n\n*图片来源：[${new URL(candidate.sourceUrl).hostname}](<${candidate.sourceUrl}>)${author} · ${license}*`
           images.push({
             title: candidate.title,
             markdown,
