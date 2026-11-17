@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { AttachmentId, type AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import { resolveConfig } from '../src/config.js'
+import type { Config } from '../src/config.js'
 import { ReplyImages } from '../src/replyImages.js'
 import type { HttpRead } from '../src/http.js'
 
@@ -28,8 +29,8 @@ const read: HttpRead = async (url) =>
         ),
       }
     : { contentType: 'image/png', data: imageBytes }
-const setup = (reader = read) =>
-  new ReplyImages(resolveConfig({ providers: ['so360'] }), {
+const setup = (reader = read, config: Config = {}) =>
+  new ReplyImages(resolveConfig({ providers: ['so360'], ...config }), {
     read: reader,
     attachments: { saveImage },
     baseUrl: () => 'https://harness.example',
@@ -40,7 +41,7 @@ beforeEach(() => {
 })
 
 it('preserves attribution through search, saving, and inline Markdown while blocking a third image', async () => {
-  const service = setup()
+  const service = setup(read, { maxImagesPerTurn: 2 })
   const found = await service.search(scope, 'Lotus', signal())
   const result = await service.embed(
     scope,

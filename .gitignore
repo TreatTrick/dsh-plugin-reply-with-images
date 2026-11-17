@@ -5,4 +5,5 @@ coverage/
 .preview/
 .impeccable/
 preview.html
+client-preview.html
 docs/preview-*.jpg

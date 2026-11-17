@@ -60,6 +60,23 @@ export class CandidateStore {
     state.searches += 1
   }
 
+  /** 在开始准备图片前原子预留整批搜索与图片额度。 */
+  reservePreparation(
+    scope: ReplyScope,
+    count: number,
+    searchLimit: number,
+    imageLimit: number,
+  ): void {
+    const state = this.state(scope)
+    if (state.searches + count > searchLimit || state.images + count > imageLimit)
+      throw new ReplyImagesError(
+        `Preparing ${count} images exceeds the remaining per-turn budget. Continue with a text answer or request fewer images.`,
+        'REPLY_IMAGES_BUDGET_EXCEEDED',
+      )
+    state.searches += count
+    state.images += count
+  }
+
   /** Publish candidates with unique IDs; new turns do not inherit previous candidates. */
   add(scope: ReplyScope, images: readonly SearchImage[]): Candidate[] {
     const state = this.state(scope)
@@ -72,6 +89,20 @@ export class CandidateStore {
 
   /** Validate the entire selection and reserve its budget atomically, rejecting duplicate, used, or foreign IDs. */
   claim(scope: ReplyScope, ids: readonly string[], limit: number): Candidate[] {
+    return this.claimCandidates(scope, ids, limit, true)
+  }
+
+  /** 消费已经由 prepare 预留图片额度的候选。 */
+  claimPrepared(scope: ReplyScope, ids: readonly string[]): Candidate[] {
+    return this.claimCandidates(scope, ids, 0, false)
+  }
+
+  private claimCandidates(
+    scope: ReplyScope,
+    ids: readonly string[],
+    limit: number,
+    reserveImages: boolean,
+  ): Candidate[] {
     const state = this.state(scope)
     if (ids.length === 0 || new Set(ids).size !== ids.length)
       throw new ReplyImagesError(
@@ -87,12 +118,12 @@ export class CandidateStore {
         )
       return image
     })
-    if (state.images + ids.length > limit)
+    if (reserveImages && state.images + ids.length > limit)
       throw new ReplyImagesError(
         `At most ${limit} images may be displayed per turn. Continue with a text answer.`,
         'REPLY_IMAGES_BUDGET_EXCEEDED',
       )
-    state.images += ids.length
+    if (reserveImages) state.images += ids.length
     ids.forEach((id) => state.claimed.add(id))
     return selected
   }

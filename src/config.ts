@@ -10,8 +10,8 @@ const configSchema = z
       .min(1)
       .max(4)
       .default(['wikimedia', 'baidu', 'so360', 'bing']),
-    maxImagesPerTurn: positive.max(8).default(2),
-    maxSearchesPerTurn: positive.max(10).default(2),
+    maxImagesPerTurn: positive.max(8).default(3),
+    maxSearchesPerTurn: positive.max(10).default(3),
     maxCandidates: positive.max(20).default(6),
     requestTimeoutMs: positive.max(60000).default(8000),
     maxImageBytes: positive.max(20 * 1024 * 1024).default(5 * 1024 * 1024),
@@ -53,8 +53,8 @@ export const Config: Schema<Config> = Schema.object({
     .description(
       'Try Wikimedia with license metadata first, then fall back to mainland and Bing providers',
     ),
-  maxImagesPerTurn: Schema.number().default(2).description('Maximum images displayed per turn'),
-  maxSearchesPerTurn: Schema.number().default(2).description('Maximum image searches per turn'),
+  maxImagesPerTurn: Schema.number().default(3).description('Maximum images displayed per turn'),
+  maxSearchesPerTurn: Schema.number().default(3).description('Maximum image searches per turn'),
   maxCandidates: Schema.number().default(6).description('Maximum candidates returned per search'),
   requestTimeoutMs: Schema.number()
     .default(8000)

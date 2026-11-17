@@ -103,12 +103,15 @@ const fixture = async (
     execute('reply_images_embed', {
       candidates: ids.map((candidateId) => ({ candidateId })),
     }) as Promise<EmbedResult>
+  const prepare = (topics: { topic: string; query: string; alt: string }[]) =>
+    execute('reply_images_prepare', { topics }) as ReturnType<ReplyImages['prepare']>
   return {
     ctx,
     routes,
     mounted,
     search,
     embed,
+    prepare,
     execute,
     nextTurn: () => {
       turn += 1
@@ -128,6 +131,34 @@ it('registers tools through real Cordis, saves attachments, and returns valid pe
   expect(result.markdown).toContain('License unconfirmed')
   expect(f.ctx.attachments.saveImage).toHaveBeenCalledTimes(2)
   expect(f.routes.get('/api/reply-images')?.methods).toEqual(['GET', 'HEAD'])
+})
+
+it('prepares ordered image topics in one call with subject-specific Markdown and source metadata', async () => {
+  const f = await fixture()
+  const result = await f.prepare([
+    { topic: 'Lotus', query: 'Lotus', alt: 'Lotus flower' },
+    { topic: 'Water lily', query: 'Water lily', alt: 'Water lily' },
+  ])
+  expect(result.topics).toHaveLength(2)
+  expect(result.topics.map((row) => row.topic)).toEqual(['Lotus', 'Water lily'])
+  expect(result.topics.every((row) => row.markdown.includes('Image source:'))).toBe(true)
+  expect(result.markdown.match(/Image source:/g)).toHaveLength(2)
+  expect(f.ctx.attachments.saveImage).toHaveBeenCalledTimes(2)
+  expect(vi.mocked(readHttp)).toHaveBeenCalledTimes(4)
+  expect(
+    validateJsonSchemaValue(f.ctx.tools.get('reply_images_prepare')!.output.schema, result),
+  ).toEqual([])
+  const args = { topics: [{ topic: 'Lotus', query: 'Lotus', alt: 'Lotus flower' }] }
+  const replayable = {
+    ...result,
+    topics: result.topics.map((item) => ({
+      ...item,
+      images: item.images.map((image) => ({ ...image })),
+    })),
+  }
+  expect(f.ctx.tools.get('reply_images_prepare')!.output.render(args, replayable)).toEqual([
+    { type: 'text', text: JSON.stringify(result) },
+  ])
 })
 
 it('uses official Desktop attachment paths with native image authentication independent of the Host port', async () => {
@@ -170,6 +201,7 @@ it('serializes and replays tool output with call cards that depend only on input
   const result = await f.embed([found.images[0]!.candidateId])
   const search = f.ctx.tools.get('reply_image_search')!
   const embed = f.ctx.tools.get('reply_images_embed')!
+  const prepare = f.ctx.tools.get('reply_images_prepare')!
   const searchArgs = { query: 'Lotus' }
   const embedArgs = { candidates: [{ candidateId: found.images[0]!.candidateId }] }
   expect(search.output.render(searchArgs, found)).toEqual([
@@ -191,11 +223,16 @@ it('serializes and replays tool output with call cards that depend only on input
     title: 'Save inline images',
     rawInput: '1 image',
   })
+  const prepareArgs = { topics: [{ topic: 'Lotus', query: 'Lotus', alt: 'Lotus flower' }] }
+  expect(prepare.presentCall?.(prepareArgs)).toMatchObject({
+    title: 'Prepare inline images',
+    rawInput: 'Lotus',
+  })
   expect(result.markdown).toContain('https://public.example/api/reply-images?')
 })
 
 it('counts displayed images and resets the budget only for a new turn', async () => {
-  const f = await fixture()
+  const f = await fixture({ maxImagesPerTurn: 2 })
   const found = await f.search()
   await f.embed(found.images.slice(0, 2).map((row) => row.candidateId))
   await expect(f.embed([found.images[2]!.candidateId])).rejects.toMatchObject({
@@ -216,6 +253,7 @@ it('limits searches by configuration and disables automatic searches in explicit
   expect(vi.mocked(readHttp)).toHaveBeenCalledTimes(1)
   const prompt = (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
   expect(prompt).toContain('only when the user explicitly asks')
+  expect(f.ctx.tools.get('reply_images_prepare')).toBeDefined()
 })
 
 it('allows in-chat previews with unknown licenses and preserves the republication warning', async () => {
@@ -224,6 +262,10 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('Unknown licenses do not prevent an in-chat reference preview')
   expect(prompt).toContain('Do not claim that an image is licensed for republication')
   expect(prompt).toContain('Use a concise subject-first search query')
+  expect(prompt).toContain('For a detailed answer about a public person')
+  expect(prompt).toContain('use reply_images_prepare once')
+  expect(prompt).toContain('standard Markdown image tables are allowed')
+  expect(prompt).toContain('do not present an unverified private image as evidence')
 })
 
 it('rejects invalid arguments through the tool schema', async () => {
@@ -233,6 +275,9 @@ it('rejects invalid arguments through the tool schema', async () => {
   })
   await expect(
     f.execute('reply_images_embed', { candidates: [{ candidateId: 4 }] }),
+  ).rejects.toMatchObject({ code: 'INVALID_ARGS' })
+  await expect(
+    f.execute('reply_images_prepare', { topics: [{ topic: 'Lotus', query: 4, alt: 'Lotus' }] }),
   ).rejects.toMatchObject({ code: 'INVALID_ARGS' })
   expect(readHttp).not.toHaveBeenCalled()
 })
@@ -252,6 +297,7 @@ it('removes tools, prompts, and media routes on unload', async () => {
   await f.mounted.dispose()
   expect(f.ctx.tools.get('reply_image_search')).toBeUndefined()
   expect(f.ctx.tools.get('reply_images_embed')).toBeUndefined()
+  expect(f.ctx.tools.get('reply_images_prepare')).toBeUndefined()
   expect(f.routes.size).toBe(0)
   expect(
     (await f.ctx.systemPrompt.assemble()).sections.find(

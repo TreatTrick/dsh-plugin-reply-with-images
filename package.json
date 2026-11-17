@@ -10,6 +10,7 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./client": "./lib/client.cjs",
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
@@ -21,13 +22,15 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "check": "npm run format:check && npm run typecheck && npm run test:coverage && npm run build",
+    "check": "npm run format:check && npm run typecheck && npm run test:coverage && npm run build && npm run check:client",
+    "check:client": "tsx scripts/checkClientBundle.ts",
     "test": "vitest run",
     "pack:check": "npm pack --dry-run",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview:generate": "tsx scripts/generatePreview.ts",
+    "preview:client": "npm run build && tsx scripts/clientPreview.ts",
     "prepack": "npm run build"
   },
   "engines": {
@@ -35,6 +38,10 @@
     "dsh": ">=0.2.2-rc.3 <0.3.0"
   },
   "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": []
+    },
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
@@ -68,6 +75,7 @@
     "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^3.2.7",
+    "jsdom": "^26.1.0",
     "prettier": "^3.10.1",
     "tsdown": "^0.15.0",
     "tsx": "^4.23.15",

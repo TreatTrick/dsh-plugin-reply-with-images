@@ -4,7 +4,8 @@ import { Config, resolveConfig } from '../src/config.js'
 it('defaults to Wikimedia first and retains bounded image and network budgets', () => {
   const config = resolveConfig()
   expect(config.providers).toEqual(['wikimedia', 'baidu', 'so360', 'bing'])
-  expect(config.maxImagesPerTurn).toBe(2)
+  expect(config.maxImagesPerTurn).toBe(3)
+  expect(config.maxSearchesPerTurn).toBe(3)
   expect(config.allowFakeIpDns).toBe(false)
   expect(resolveConfig(Config({}))).toEqual(config)
 })

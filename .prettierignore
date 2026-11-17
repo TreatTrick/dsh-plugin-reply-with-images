@@ -6,3 +6,4 @@ coverage/
 package-lock.json
 docs/plans/
 preview.html
+client-preview.html

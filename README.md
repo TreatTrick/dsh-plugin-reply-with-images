@@ -4,7 +4,9 @@ Documentation is maintained in English.
 
 An independent TypeScript community bundle that adds relevant real images to DeepSeek Harness answers. It uses official Harness services, with no dependency on third-party DSH search/display plugins. This project owns provider adapters, downloading and candidate handling; ordinary runtime dependencies include Zod, Cheerio and ipaddr.js.
 
-Images use Markdown immediately after related paragraphs, similar to an illustrated ChatGPT answer. The default budget is two searches and two images per turn. The model decides when images help, and can finish in text when acquisition fails.
+Detailed answers about people, organizations, news, products and places now receive direct guidance to consider relevant images. The model can use `reply_images_prepare` once to search and save up to three subject-linked images, with copy-ready Markdown, source and license captions, and separate warnings for each topic. The default per-turn budget is three searches and three images; failed sources leave successful images intact and allow a text answer.
+
+An optional DSH Web client entry presents image tables as compact, responsive image rows or comparison groups and adds keyboard-accessible zoom for ordinary Markdown images. It does not replace host Markdown: without the client, images remain standard Markdown. DSH's own image viewer remains in place wherever the host already provides one.
 
 ## Install
 
@@ -32,8 +34,8 @@ Override the installed row in your profile's `cordis.patch.yml`:
   config:
     providers: [wikimedia, baidu, so360, bing]
     automatic: true
-    maxImagesPerTurn: 2
-    maxSearchesPerTurn: 2
+    maxImagesPerTurn: 3
+    maxSearchesPerTurn: 3
     maxCandidates: 6
     requestTimeoutMs: 8000
     maxImageBytes: 5242880
@@ -50,7 +52,7 @@ Enable `allowFakeIpDns` only for a known proxy Fake-IP setup. It additionally al
 
 ## Behavior and limits
 
-`reply_image_search({ query })` returns current-agent/current-turn candidate IDs and source metadata. `reply_images_embed({ candidates: [{ candidateId, alt? }] })` reserves budget before downloading from known provider CDNs, validates and saves images through `attachments.saveImage()`, and returns Markdown. In Web profiles, an official Connection route authenticates access and reads through `attachments.readImage()`, using durable reference fields in the URL. Desktop obtains persistent file paths through `attachments.imageHostPath()` and lets the native `/api/file` channel authenticate and read them. Preserve attachment storage to retain access after restart.
+`reply_images_prepare({ topics: [{ topic, query, alt }] })` reserves the complete batch against remaining search and image budgets before network access. It returns one result per subject, including `markdown` for paragraphs and single-line `tableMarkdown` for image-table cells. The first usable result is saved for each topic; one failure does not discard other images. `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` remain available for exact candidate selection. All saved images use Harness attachments and the existing authenticated Web or Desktop image paths. Preserve attachment storage to retain access after restart.
 
 Tool use and placement depend on the model following instructions. Selection uses titles and sources; the plugin does not inspect visual contents or guarantee relevance. Search thumbnails limit resolution. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Disabling the plugin removes its Web image route; re-enable it with the attachment store preserved to display old images. Desktop paths follow the official filesystem access policy and become invalid if attachment storage moves.
 
@@ -62,7 +64,7 @@ Baidu, 360 and Bing use unofficial web endpoints that may change or return CAPTC
 
 ## Preview
 
-Run `npm run preview:generate`, then open the locally generated `preview.html` for a self-contained illustrated answer with light/dark mode and image zoom. Images are acquired through the real plugin and official local attachment store; the layout is a demonstration, not a full model-session acceptance test. Preview HTML and image files stay local and are excluded from Git because search results may have unconfirmed reuse rights.
+Run `npm run preview:generate`, then open the locally generated `preview.html` for a self-contained illustrated answer. Run `npm run preview:client`, then open `client-preview.html` to inspect the compiled DSH Web client against a two-column subject index and an image comparison table. The latter uses remote Unsplash preview images; it does not download or package them. Both previews are demonstrations, not full model-session acceptance tests, and generated HTML stays local.
 
 Regenerate with `npm run preview:generate`, optionally appending `-- --allow-fake-ip-dns` for a known Fake-IP network. This sends two example queries online. Both images must succeed before replacing the preview; diagnostics and attachments live in ignored `.preview/`.
 

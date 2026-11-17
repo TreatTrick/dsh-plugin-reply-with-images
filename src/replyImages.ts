@@ -24,6 +24,18 @@ export interface ImageSelection {
   candidateId: string
   alt?: string
 }
+export interface ImageTopic {
+  topic: string
+  query: string
+  alt: string
+}
+export interface PreparedImageTopic {
+  topic: string
+  markdown: string
+  tableMarkdown: string
+  images: EmbeddedImage[]
+  warnings: string[]
+}
 export interface EmbeddedImage {
   title: string
   markdown: string
@@ -54,7 +66,8 @@ const mediaTypeOf = (type: string, data: Uint8Array): ImageMediaType | undefined
     return 'image/gif'
   return undefined
 }
-const escapeText = (value: string): string => plainText(value).replace(/[\\`*_{}\[\]<>~!]/g, '\\$&')
+const escapeText = (value: string): string =>
+  plainText(value).replace(/[\\`*_{}\[\]<>~!|]/g, '\\$&')
 
 /** Search, manage candidate budgets, and save images; cancel network access and drain writes on shutdown. */
 export class ReplyImages {
@@ -89,24 +102,102 @@ export class ReplyImages {
 
   /** Limit searches and keep candidates scoped to the current Agent and turn. */
   search(scope: ReplyScope, query: string, signal: AbortSignal) {
+    return this.run(signal, (abort) => this.searchReserved(scope, query, abort, true))
+  }
+
+  /** 单次准备对应正文主题的 Markdown，并在网络工作前预留全部额度。 */
+  prepare(scope: ReplyScope, topics: readonly ImageTopic[], signal: AbortSignal) {
     return this.run(signal, async (abort) => {
-      const trimmed = query.trim()
-      if (!trimmed || trimmed.length > 200)
-        throw new ToolArgsError(['Search queries must contain 1–200 characters.'])
-      this.candidates.reserveSearch(scope, this.config.maxSearchesPerTurn)
-      const found = await searchImages(trimmed, {
-        config: this.config,
-        read: this.read,
-        signal: abort,
+      if (topics.length < 1 || topics.length > 3)
+        throw new ToolArgsError(['Prepare 1–3 image topics per call.'])
+      const normalized = topics.map((item) => {
+        const topic = item.topic.trim()
+        const query = item.query.trim()
+        const alt = item.alt.trim()
+        if (
+          !topic ||
+          topic.length > 120 ||
+          !query ||
+          query.length > 200 ||
+          !alt ||
+          alt.length > 160
+        )
+          throw new ToolArgsError([
+            'Each topic needs a label (1–120 characters), query (1–200), and alt text (1–160).',
+          ])
+        return { topic, query, alt }
       })
-      abort.throwIfAborted()
+      this.candidates.reservePreparation(
+        scope,
+        normalized.length,
+        this.config.maxSearchesPerTurn,
+        this.config.maxImagesPerTurn,
+      )
+      const prepared: PreparedImageTopic[] = []
+      for (const item of normalized) {
+        abort.throwIfAborted()
+        const found = await this.searchReserved(scope, item.query, abort, false)
+        const candidate = found.images[0]
+        if (!candidate) {
+          prepared.push({
+            topic: item.topic,
+            markdown: '',
+            tableMarkdown: '',
+            images: [],
+            warnings: [
+              ...found.warnings,
+              `${item.topic}: No usable image result; continue with text.`,
+            ],
+          })
+          continue
+        }
+        const result = await this.embedReserved(
+          scope,
+          [{ candidateId: candidate.candidateId, alt: item.alt }],
+          abort,
+          false,
+        )
+        prepared.push({
+          topic: item.topic,
+          markdown: result.markdown,
+          tableMarkdown: result.markdown.replace(/\n+/g, ' '),
+          images: result.images,
+          warnings: [...found.warnings, ...result.warnings],
+        })
+      }
       return {
-        images: this.candidates
-          .add(scope, found.images)
-          .map(({ imageUrl: _download, ...candidate }) => candidate),
-        warnings: found.warnings,
+        topics: prepared,
+        markdown: prepared
+          .map((item) => item.markdown)
+          .filter(Boolean)
+          .join('\n\n'),
+        warnings: prepared.flatMap((item) => item.warnings),
       }
     })
+  }
+
+  private async searchReserved(
+    scope: ReplyScope,
+    query: string,
+    signal: AbortSignal,
+    reserve: boolean,
+  ) {
+    const trimmed = query.trim()
+    if (!trimmed || trimmed.length > 200)
+      throw new ToolArgsError(['Search queries must contain 1–200 characters.'])
+    if (reserve) this.candidates.reserveSearch(scope, this.config.maxSearchesPerTurn)
+    const found = await searchImages(trimmed, {
+      config: this.config,
+      read: this.read,
+      signal,
+    })
+    signal.throwIfAborted()
+    return {
+      images: this.candidates
+        .add(scope, found.images)
+        .map(({ imageUrl: _download, ...candidate }) => candidate),
+      warnings: found.warnings,
+    }
   }
 
   /** Reserve the entire image budget before downloading and saving sequentially; report individual failures as warnings. */
@@ -115,60 +206,72 @@ export class ReplyImages {
     selections: readonly ImageSelection[],
     signal: AbortSignal,
   ): Promise<EmbedResult> {
-    return this.run(signal, async (abort) => {
-      const chosen = this.candidates.claim(
-        scope,
-        selections.map((row) => row.candidateId),
-        this.config.maxImagesPerTurn,
-      )
-      const images: EmbeddedImage[] = []
-      const warnings: string[] = []
-      const baseUrl = this.dependencies.baseUrl()
-      for (let index = 0; index < chosen.length; index += 1) {
-        const candidate = chosen[index]!
-        abort.throwIfAborted()
-        try {
-          const downloaded = await this.read(candidate.imageUrl, abort, {
-            maxBytes: this.config.maxImageBytes,
-            timeoutMs: this.config.requestTimeoutMs,
-            allowFakeIpDns: this.config.allowFakeIpDns,
-            allowUrl: (value) => imageUrl(value, candidate.provider) !== undefined,
-          })
-          abort.throwIfAborted()
-          const mediaType = mediaTypeOf(downloaded.contentType, downloaded.data)
-          if (mediaType === undefined) throw new Error('Unsupported image format')
-          const ref = await this.dependencies.attachments.saveImage({
-            data: downloaded.data,
-            mediaType,
-            name: `${candidate.title.slice(0, 80)}.${mediaType.slice(6)}`,
-          })
-          abort.throwIfAborted()
-          const title = escapeText(selections[index]?.alt?.trim() || candidate.title)
-          const licenseText =
-            candidate.license === 'unknown' ? 'License unconfirmed' : escapeText(candidate.license)
-          const license = candidate.licenseUrl
-            ? `[${licenseText}](<${candidate.licenseUrl}>)`
-            : licenseText
-          const author = candidate.author ? ` · ${escapeText(candidate.author)}` : ''
-          const destination = this.dependencies.imageDestination?.(ref) ?? mediaUrl(baseUrl, ref)
-          const markdown = `![${title}](<${destination}>)\n\n*Image source: [${new URL(candidate.sourceUrl).hostname}](<${candidate.sourceUrl}>)${author} · ${license}*`
-          images.push({
-            title: candidate.title,
-            markdown,
-            sourceUrl: candidate.sourceUrl,
-            license: candidate.license,
-            attachmentId: ref.attachmentId,
-          })
-        } catch (error) {
-          abort.throwIfAborted()
-          if (error instanceof Error && error.name === 'AbortError') throw error
-          warnings.push(
-            `${candidate.title}: Image download or save failed (${error instanceof Error ? error.message.slice(0, 120) : 'Unknown error'})`,
-          )
-        }
+    return this.run(signal, (abort) => this.embedReserved(scope, selections, abort, true))
+  }
+
+  private async embedReserved(
+    scope: ReplyScope,
+    selections: readonly ImageSelection[],
+    signal: AbortSignal,
+    reserve: boolean,
+  ): Promise<EmbedResult> {
+    const chosen = reserve
+      ? this.candidates.claim(
+          scope,
+          selections.map((row) => row.candidateId),
+          this.config.maxImagesPerTurn,
+        )
+      : this.candidates.claimPrepared(
+          scope,
+          selections.map((row) => row.candidateId),
+        )
+    const images: EmbeddedImage[] = []
+    const warnings: string[] = []
+    const baseUrl = this.dependencies.baseUrl()
+    for (let index = 0; index < chosen.length; index += 1) {
+      const candidate = chosen[index]!
+      signal.throwIfAborted()
+      try {
+        const downloaded = await this.read(candidate.imageUrl, signal, {
+          maxBytes: this.config.maxImageBytes,
+          timeoutMs: this.config.requestTimeoutMs,
+          allowFakeIpDns: this.config.allowFakeIpDns,
+          allowUrl: (value) => imageUrl(value, candidate.provider) !== undefined,
+        })
+        signal.throwIfAborted()
+        const mediaType = mediaTypeOf(downloaded.contentType, downloaded.data)
+        if (mediaType === undefined) throw new Error('Unsupported image format')
+        const ref = await this.dependencies.attachments.saveImage({
+          data: downloaded.data,
+          mediaType,
+          name: `${candidate.title.slice(0, 80)}.${mediaType.slice(6)}`,
+        })
+        signal.throwIfAborted()
+        const title = escapeText(selections[index]?.alt?.trim() || candidate.title)
+        const licenseText =
+          candidate.license === 'unknown' ? 'License unconfirmed' : escapeText(candidate.license)
+        const license = candidate.licenseUrl
+          ? `[${licenseText}](<${candidate.licenseUrl}>)`
+          : licenseText
+        const author = candidate.author ? ` · ${escapeText(candidate.author)}` : ''
+        const destination = this.dependencies.imageDestination?.(ref) ?? mediaUrl(baseUrl, ref)
+        const markdown = `![${title}](<${destination}>)\n\n*Image source: [${new URL(candidate.sourceUrl).hostname}](<${candidate.sourceUrl}>)${author} · ${license}*`
+        images.push({
+          title: candidate.title,
+          markdown,
+          sourceUrl: candidate.sourceUrl,
+          license: candidate.license,
+          attachmentId: ref.attachmentId,
+        })
+      } catch (error) {
+        signal.throwIfAborted()
+        if (error instanceof Error && error.name === 'AbortError') throw error
+        warnings.push(
+          `${candidate.title}: Image download or save failed (${error instanceof Error ? error.message.slice(0, 120) : 'Unknown error'})`,
+        )
       }
-      return { markdown: images.map((row) => row.markdown).join('\n\n'), images, warnings }
-    })
+    }
+    return { markdown: images.map((row) => row.markdown).join('\n\n'), images, warnings }
   }
 
   /** Remove candidates on Agent disposal while Harness retains persisted attachments. */
