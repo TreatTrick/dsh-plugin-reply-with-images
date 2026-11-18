@@ -16,14 +16,14 @@ Requires Node ≥24.9 and the official `agents`, `tools`, `systemPrompt`, `attac
 npm ci
 npm run check
 npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.2.tgz
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.3.tgz
 dsh --profile web --dump-config
 dsh --profile web
 ```
 
 Use an existing Web-capable profile in place of `web`. This package has not been published to npm. For linked development, build first, then use `dsh plugin --profile web add .`.
 
-For Desktop, fully quit the application, run `plugin --profile desktop add <tarball-path>` with that installation's bundled `dsh`, then reopen Desktop. On Windows, the command is under `resources/runtime/cli/bin/dsh.cmd` in the installation directory. Version `0.1.1` fixes Desktop image authentication; version `0.1.2` enables licensed Wikimedia search by default and accepts its current thumbnail URLs. Generate a new answer after upgrading; existing answer URLs are not migrated.
+For Desktop, fully quit the application, run `plugin --profile desktop add <tarball-path>` with that installation's bundled `dsh`, then reopen Desktop. On Windows, the command is under `resources/runtime/cli/bin/dsh.cmd` in the installation directory. Version `0.1.1` fixes Desktop image authentication; version `0.1.2` enables licensed Wikimedia search by default and accepts its current thumbnail URLs; version `0.1.3` tells the model to use three distinct images across detailed multi-section answers. Generate a new answer after upgrading; existing answer URLs are not migrated.
 
 ## Configure
 
@@ -52,7 +52,7 @@ Enable `allowFakeIpDns` only for a known proxy Fake-IP setup. It additionally al
 
 ## Behavior and limits
 
-`reply_images_prepare({ topics: [{ topic, query, alt }] })` reserves the complete batch against remaining search and image budgets before network access. It returns one result per subject, including `markdown` for paragraphs and single-line `tableMarkdown` for image-table cells. The first usable result is saved for each topic; one failure does not discard other images. `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` remain available for exact candidate selection. All saved images use Harness attachments and the existing authenticated Web or Desktop image paths. Preserve attachment storage to retain access after restart.
+`reply_images_prepare({ topics: [{ topic, query, alt }] })` reserves the complete batch against remaining search and image budgets before network access. Detailed multi-section answers are guided to submit three distinct topics and insert each successful topic's `markdown` immediately after the matching section; `placement` states where it belongs, while single-line `tableMarkdown` is for image-table cells. The first usable result is saved for each topic; one failure does not discard other images. `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` remain available for exact candidate selection. All saved images use Harness attachments and the existing authenticated Web or Desktop image paths. Preserve attachment storage to retain access after restart.
 
 Tool use and placement depend on the model following instructions. Selection uses titles and sources; the plugin does not inspect visual contents or guarantee relevance. Search thumbnails limit resolution. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Disabling the plugin removes its Web image route; re-enable it with the attachment store preserved to display old images. Desktop paths follow the official filesystem access policy and become invalid if attachment storage moves.
 

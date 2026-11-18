@@ -23,18 +23,27 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
     defineTool({
       name: 'reply_images_prepare',
       description:
-        'Prepare 1–3 subject-linked inline images in one call. Each topic needs a short label, a focused search query, and accessible alt text. Returns copy-ready Markdown and source/license metadata per topic; failures are reported independently.',
+        'Prepare up to three subject-linked inline images in one call. For a detailed answer with multiple visual sections, submit exactly three distinct topics by default and consume every successful topic in the matching section. Use fewer only when fewer relevant subjects exist or the remaining budget is smaller. Each topic needs a short label, a focused search query, and accessible alt text. The ordered topics[] result includes per-topic placement guidance, copy-ready Markdown, table Markdown, source/license metadata, and independent warnings; do not paste only the aggregate markdown.',
       parameters: {
         topics: {
           type: 'array',
           required: true,
-          description: 'Ordered image topics to place beside matching answer sections.',
+          description:
+            'Ordered, distinct image topics to place beside matching answer sections. Use exactly three for a detailed multi-section answer unless fewer relevant subjects or budget remain.',
           items: {
             type: 'object',
             additionalProperties: false,
             properties: {
-              topic: { type: 'string', required: true, description: 'Short subject label.' },
-              query: { type: 'string', required: true, description: 'Focused image search query.' },
+              topic: {
+                type: 'string',
+                required: true,
+                description: 'Short subject label that identifies the matching answer section.',
+              },
+              query: {
+                type: 'string',
+                required: true,
+                description: 'Focused image search query for this distinct topic.',
+              },
               alt: {
                 type: 'string',
                 required: true,
@@ -49,17 +58,37 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
           type: 'object',
           additionalProperties: false,
           properties: {
-            markdown: { type: 'string', required: true },
+            markdown: {
+              type: 'string',
+              required: true,
+              description:
+                'Aggregate Markdown for fallback use. For multi-section answers, insert each successful topics[].markdown beside its matching section instead of using only this field.',
+            },
             topics: {
               type: 'array',
               required: true,
+              description:
+                'Ordered per-topic results. Every item with images must be consumed and inserted after the matching section.',
               items: {
                 type: 'object',
                 additionalProperties: false,
                 properties: {
                   topic: { type: 'string', required: true },
-                  markdown: { type: 'string', required: true },
-                  tableMarkdown: { type: 'string', required: true },
+                  placement: {
+                    type: 'string',
+                    required: true,
+                    description: 'Where to insert this topic image in the answer.',
+                  },
+                  markdown: {
+                    type: 'string',
+                    required: true,
+                    description: 'Use after the matching paragraph or section heading.',
+                  },
+                  tableMarkdown: {
+                    type: 'string',
+                    required: true,
+                    description: 'Use only inside a Markdown table cell.',
+                  },
                   images: {
                     type: 'array',
                     required: true,

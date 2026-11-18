@@ -133,21 +133,34 @@ it('registers tools through real Cordis, saves attachments, and returns valid pe
   expect(f.routes.get('/api/reply-images')?.methods).toEqual(['GET', 'HEAD'])
 })
 
-it('prepares ordered image topics in one call with subject-specific Markdown and source metadata', async () => {
+it('prepares three ordered visual topics with per-section placement guidance and source metadata', async () => {
   const f = await fixture()
   const result = await f.prepare([
     { topic: 'Lotus', query: 'Lotus', alt: 'Lotus flower' },
     { topic: 'Water lily', query: 'Water lily', alt: 'Water lily' },
+    { topic: 'Garden', query: 'Garden', alt: 'Garden landscape' },
   ])
-  expect(result.topics).toHaveLength(2)
-  expect(result.topics.map((row) => row.topic)).toEqual(['Lotus', 'Water lily'])
+  expect(result.topics).toHaveLength(3)
+  expect(result.topics.map((row) => row.topic)).toEqual(['Lotus', 'Water lily', 'Garden'])
+  expect(result.topics.map((row) => row.placement)).toEqual([
+    expect.stringContaining('section about "Lotus"'),
+    expect.stringContaining('section about "Water lily"'),
+    expect.stringContaining('section about "Garden"'),
+  ])
   expect(result.topics.every((row) => row.markdown.includes('Image source:'))).toBe(true)
-  expect(result.markdown.match(/Image source:/g)).toHaveLength(2)
-  expect(f.ctx.attachments.saveImage).toHaveBeenCalledTimes(2)
-  expect(vi.mocked(readHttp)).toHaveBeenCalledTimes(4)
+  expect(result.markdown.match(/Image source:/g)).toHaveLength(3)
+  expect(f.ctx.attachments.saveImage).toHaveBeenCalledTimes(3)
+  expect(vi.mocked(readHttp)).toHaveBeenCalledTimes(6)
   expect(
     validateJsonSchemaValue(f.ctx.tools.get('reply_images_prepare')!.output.schema, result),
   ).toEqual([])
+  const prepareTool = f.ctx.tools.get('reply_images_prepare')!
+  const outputSchema = prepareTool.output.schema as any
+  expect(prepareTool.description).toContain('exactly three distinct topics by default')
+  expect(outputSchema.properties.topics.description).toContain(
+    'Every item with images must be consumed',
+  )
+  expect(outputSchema.properties.topics.items.required).toContain('placement')
   const args = { topics: [{ topic: 'Lotus', query: 'Lotus', alt: 'Lotus flower' }] }
   const replayable = {
     ...result,
@@ -264,6 +277,10 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('Use a concise subject-first search query')
   expect(prompt).toContain('For a detailed answer about a public person')
   expect(prompt).toContain('use reply_images_prepare once')
+  expect(prompt).toContain('you MUST plan exactly three distinct image topics by default')
+  expect(prompt).toContain('Do not submit only one topic for a multi-section answer')
+  expect(prompt).toContain('consume every topic that has images')
+  expect(prompt).toContain('never paste only the aggregate Markdown at the top')
   expect(prompt).toContain('standard Markdown image tables are allowed')
   expect(prompt).toContain('do not present an unverified private image as evidence')
 })

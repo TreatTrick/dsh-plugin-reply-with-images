@@ -142,6 +142,11 @@ it('keeps successful topics and diagnoses empty search, provider errors, and sto
     signal(),
   )
   expect(result.topics.map((item) => item.images.length)).toEqual([0, 1, 0])
+  expect(result.topics.map((item) => item.placement)).toEqual([
+    'No image was prepared for this topic; use its warning and continue without an image.',
+    expect.stringContaining('section about "Garden"'),
+    'No image was prepared for this topic; use its warning and continue without an image.',
+  ])
   expect(result.warnings.join()).toContain('No usable image result')
   expect(result.warnings.join()).toContain('Provider unavailable')
   expect(result.markdown).toContain('Image source:')

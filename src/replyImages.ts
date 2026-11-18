@@ -31,6 +31,7 @@ export interface ImageTopic {
 }
 export interface PreparedImageTopic {
   topic: string
+  placement: string
   markdown: string
   tableMarkdown: string
   images: EmbeddedImage[]
@@ -141,6 +142,8 @@ export class ReplyImages {
         if (!candidate) {
           prepared.push({
             topic: item.topic,
+            placement:
+              'No image was prepared for this topic; use its warning and continue without an image.',
             markdown: '',
             tableMarkdown: '',
             images: [],
@@ -159,6 +162,9 @@ export class ReplyImages {
         )
         prepared.push({
           topic: item.topic,
+          placement: result.images.length
+            ? `Insert this topic's image Markdown immediately after the answer section about "${item.topic}". Use tableMarkdown only inside a Markdown table cell.`
+            : 'No image was prepared for this topic; use its warning and continue without an image.',
           markdown: result.markdown,
           tableMarkdown: result.markdown.replace(/\n+/g, ' '),
           images: result.images,
