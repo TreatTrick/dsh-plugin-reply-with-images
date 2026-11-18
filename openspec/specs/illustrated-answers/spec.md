@@ -8,12 +8,17 @@ Define how DSH prepares, attributes, and presents relevant images in answers.
 
 ### Requirement: 自动识别适合插图的回答
 
-当 automatic 配置开启时，系统提示 MUST 明确要求模型考虑在较长的人物、组织、新闻或事件、商品、地点、自然主题和视觉比较回答中插入相关实图，并说明应将图放到相关说明之后。短答、代码、抽象主题和纯文字请求 MUST 被指导为不搜索图片。配置关闭时 MUST 继续只在用户明确请求图片时使用图片工具。
+当 automatic 配置开启时，系统提示 MUST 明确要求模型考虑在较长的人物、组织、新闻或事件、商品、地点、自然主题和视觉比较回答中插入相关实图，并说明应将图放到相关说明之后。对于包含多个可视章节的长篇人物、新闻或事件综述，模型 MUST 默认规划三个互不重复的图片主题，并逐项插入对应章节；不得只使用开头的聚合 Markdown。仅当相关视觉主体确实少于三个或剩余预算不足时才可降级。短答、代码、抽象主题和纯文字请求 MUST 被指导为不搜索图片。配置关闭时 MUST 继续只在用户明确要求图片时使用图片工具。
 
 #### Scenario: 长篇人物和事件综述
 
-- **WHEN** 用户要求详细介绍一位公众人物和相关事件，且 automatic 已开启
-- **THEN** 模型收到明确的配图要求，并能在该轮看到单次图片准备工具
+- **WHEN** 用户要求详细介绍一位公众人物和相关事件，且 automatic 已开启并存在多个可视章节
+- **THEN** 模型收到规划三个主题的明确要求，调用单次图片准备工具，并将每个成功主题的图片放在对应章节后
+
+#### Scenario: 只有一个相关视觉主体时降级
+
+- **WHEN** 用户要求的长答只有一个适合展示的视觉主体，或剩余预算少于三个主题
+- **THEN** 模型可以准备一个或两个主题，并继续完成文字回答
 
 #### Scenario: 纯文字、短答或抽象主题
 
@@ -27,12 +32,12 @@ Define how DSH prepares, attributes, and presents relevant images in answers.
 
 ### Requirement: 单次调用准备主题配图
 
-系统 MUST 提供 `reply_images_prepare`，让模型一次提交有序主题、简洁搜索词和 alt 文本，并返回可直接插入答案的图片 Markdown、来源与许可信息及逐项警告。工具 MUST 按单轮剩余搜索和图片预算限制主题数量，沿用现有安全 Provider 和持久化附件能力，并处理取消及插件卸载。每个主题成功或失败 MUST 独立报告，不得因一个主题失败丢失其他已成功图片。原有 `reply_image_search` 和 `reply_images_embed` MUST 继续可用。
+系统 MUST 提供 `reply_images_prepare`，让模型一次提交有序主题、简洁搜索词和 alt 文本，并返回可直接插入答案的图片 Markdown、来源与许可信息及逐项警告。对于自动配图的多章节长答，工具 description MUST 要求模型默认提交三个互不重复的主题，并逐项消费返回的 `topics[]`；每个成功主题 MUST 包含对应章节的 `placement` 插入提示；`markdown` MUST 用于段落，`tableMarkdown` MUST 用于表格单元格。工具 MUST 按单轮剩余搜索和图片预算限制主题数量，沿用现有安全 Provider 和持久化附件能力，并处理取消及插件卸载。每个主题成功或失败 MUST 独立报告，不得因一个主题失败丢失其他已成功图片。原有 `reply_image_search` 和 `reply_images_embed` MUST 继续可用。
 
 #### Scenario: 长答一次准备多张图片
 
-- **WHEN** 模型提交多个合法且未超过当前剩余预算的主题
-- **THEN** 单次工具调用按序搜索和保存各主题的首个可用候选，并为每张成功图片返回含来源和许可说明的 Markdown
+- **WHEN** 模型提交三个合法、互不重复且未超过当前剩余预算的主题
+- **THEN** 单次工具调用按序搜索和保存各主题的首个可用候选，并为每个成功主题返回含来源和许可说明的 Markdown
 
 #### Scenario: 主题超过剩余预算
 
@@ -42,7 +47,7 @@ Define how DSH prepares, attributes, and presents relevant images in answers.
 #### Scenario: 部分图源失败
 
 - **WHEN** 一项搜索无结果或一张图片下载保存失败而其他主题成功
-- **THEN** 工具保留成功图片并对失败主题返回可读警告
+- **THEN** 工具保留成功图片并对失败主题返回可读警告，模型仍可插入其他主题图片
 
 #### Scenario: 插件卸载或请求取消
 
