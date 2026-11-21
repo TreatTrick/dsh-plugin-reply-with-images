@@ -3,6 +3,11 @@ import { z } from 'zod'
 
 const providerSchema = z.enum(['baidu', 'so360', 'bing', 'wikimedia'])
 const positive = z.number().int().positive()
+const budgets = {
+  images: { default: 8, max: 16 },
+  searches: { default: 6, max: 12 },
+  candidates: { default: 10, max: 20 },
+}
 const configSchema = z
   .object({
     providers: z
@@ -10,9 +15,9 @@ const configSchema = z
       .min(1)
       .max(4)
       .default(['wikimedia', 'baidu', 'so360', 'bing']),
-    maxImagesPerTurn: positive.max(8).default(3),
-    maxSearchesPerTurn: positive.max(10).default(3),
-    maxCandidates: positive.max(20).default(6),
+    maxImagesPerTurn: positive.max(budgets.images.max).default(budgets.images.default),
+    maxSearchesPerTurn: positive.max(budgets.searches.max).default(budgets.searches.default),
+    maxCandidates: positive.max(budgets.candidates.max).default(budgets.candidates.default),
     requestTimeoutMs: positive.max(60000).default(8000),
     maxImageBytes: positive.max(20 * 1024 * 1024).default(5 * 1024 * 1024),
     maxSearchBytes: positive.max(10 * 1024 * 1024).default(3 * 1024 * 1024),
@@ -53,9 +58,15 @@ export const Config: Schema<Config> = Schema.object({
     .description(
       'Try Wikimedia with license metadata first, then fall back to mainland and Bing providers',
     ),
-  maxImagesPerTurn: Schema.number().default(3).description('Maximum images displayed per turn'),
-  maxSearchesPerTurn: Schema.number().default(3).description('Maximum image searches per turn'),
-  maxCandidates: Schema.number().default(6).description('Maximum candidates returned per search'),
+  maxImagesPerTurn: Schema.number()
+    .default(budgets.images.default)
+    .description(`Maximum images displayed per turn (1–${budgets.images.max})`),
+  maxSearchesPerTurn: Schema.number()
+    .default(budgets.searches.default)
+    .description(`Maximum image searches per turn (1–${budgets.searches.max})`),
+  maxCandidates: Schema.number()
+    .default(budgets.candidates.default)
+    .description(`Maximum candidates returned per search (1–${budgets.candidates.max})`),
   requestTimeoutMs: Schema.number()
     .default(8000)
     .description('Timeout per network request in milliseconds'),

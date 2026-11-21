@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -8,7 +9,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import * as plugin from '../src/index.js'
 import { readHttp, type HttpRead } from '../src/http.js'
 import type { Config } from '../src/config.js'
-import type { ReplyImages, EmbedResult } from '../src/replyImages.js'
+import type { ReplyImages, EmbedResult, ImageTopic } from '../src/replyImages.js'
 
 vi.mock('../src/http.js', () => ({ readHttp: vi.fn() }))
 const roots: Context[] = []
@@ -30,14 +31,14 @@ const netRead: HttpRead = async (url) =>
           JSON.stringify({
             list: [1, 2, 3].map((id) => ({
               title: `Lotus ${id}`,
-              thumb: `https://p2.ssl.qhimgs1.com/${id}.jpg`,
+              thumb: `https://p2.ssl.qhimgs1.com/${id}.jpg${new URL(url).search}`,
               link: 'https://example.com/lotus',
             })),
           }),
         ),
         contentType: 'application/json',
       }
-    : { data: Buffer.from('89504e470d0a1a0a', 'hex'), contentType: 'image/png' }
+    : { data: Buffer.from(url), contentType: 'image/png' }
 
 const fixture = async (
   config: Config = {},
@@ -51,7 +52,10 @@ const fixture = async (
   let turn = 1
   let turnOpen = true
   ctx.provide('attachments', {
-    saveImage: vi.fn(async () => ref),
+    saveImage: vi.fn(async ({ data }: { data: Uint8Array }) => ({
+      ...ref,
+      attachmentId: AttachmentId(`sha256:${createHash('sha256').update(data).digest('hex')}`),
+    })),
     readImage: vi.fn(async () => ({ ref, data: Uint8Array.of(1, 2, 3) })),
     imageHostPath: vi.fn(() => imagePath),
   })
@@ -103,7 +107,7 @@ const fixture = async (
     execute('reply_images_embed', {
       candidates: ids.map((candidateId) => ({ candidateId })),
     }) as Promise<EmbedResult>
-  const prepare = (topics: { topic: string; query: string; alt: string }[]) =>
+  const prepare = (topics: ImageTopic[]) =>
     execute('reply_images_prepare', { topics }) as ReturnType<ReplyImages['prepare']>
   return {
     ctx,
@@ -156,7 +160,8 @@ it('prepares three ordered visual topics with per-section placement guidance and
   ).toEqual([])
   const prepareTool = f.ctx.tools.get('reply_images_prepare')!
   const outputSchema = prepareTool.output.schema as any
-  expect(prepareTool.description).toContain('exactly three distinct topics by default')
+  expect(prepareTool.description).toContain('positive visual value')
+  expect(prepareTool.description).toContain('retain every source, author, and license')
   expect(outputSchema.properties.topics.description).toContain(
     'Every item with images must be consumed',
   )
@@ -184,7 +189,15 @@ it('uses official Desktop attachment paths with native image authentication inde
     '(<C:/Users/Test%20%F0%9F%8C%BF%20User/.dsh/attachments/cat%23100%25%3F.png>)',
   )
   expect(result.markdown).not.toContain('/api/reply-images')
-  expect(f.ctx.attachments.imageHostPath).toHaveBeenCalledWith(ref)
+  expect(f.ctx.attachments.imageHostPath).toHaveBeenCalledWith({
+    ...ref,
+    attachmentId: result.images[0]!.attachmentId,
+  })
+  const grouped = await f.prepare([
+    { topic: 'Other views', layout: 'strip', query: 'Garden', alt: 'Garden' },
+  ])
+  expect(grouped.topics[0]!.images).toHaveLength(3)
+  expect(grouped.markdown).not.toContain('#dsh-layout')
 })
 
 it('reports a missing Desktop attachment path without generating an unauthenticated link', async () => {
@@ -239,7 +252,7 @@ it('serializes and replays tool output with call cards that depend only on input
   const prepareArgs = { topics: [{ topic: 'Lotus', query: 'Lotus', alt: 'Lotus flower' }] }
   expect(prepare.presentCall?.(prepareArgs)).toMatchObject({
     title: 'Prepare inline images',
-    rawInput: 'Lotus',
+    rawInput: 'Lotus (single)',
   })
   expect(result.markdown).toContain('https://public.example/api/reply-images?')
 })
@@ -275,14 +288,43 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('Unknown licenses do not prevent an in-chat reference preview')
   expect(prompt).toContain('Do not claim that an image is licensed for republication')
   expect(prompt).toContain('Use a concise subject-first search query')
-  expect(prompt).toContain('For a detailed answer about a public person')
+  expect(prompt).toContain('First decide whether images add positive visual value')
   expect(prompt).toContain('use reply_images_prepare once')
-  expect(prompt).toContain('you MUST plan exactly three distinct image topics by default')
-  expect(prompt).toContain('Do not submit only one topic for a multi-section answer')
+  expect(prompt).toContain(
+    'Skip short answers, code, abstract explanations, math, and text-only requests',
+  )
+  for (const layout of ['table', 'collage', 'strip', 'single']) expect(prompt).toContain(layout)
+  expect(prompt).toContain('6 image searches and display at most 8 images')
   expect(prompt).toContain('consume every topic that has images')
   expect(prompt).toContain('never paste only the aggregate Markdown at the top')
-  expect(prompt).toContain('standard Markdown image tables are allowed')
+  expect(prompt).toContain('Retain all source, author, and license captions')
   expect(prompt).toContain('do not present an unverified private image as evidence')
+})
+
+it('runs a mixed-layout request through the registered tool and rejects invalid layout names', async () => {
+  const f = await fixture()
+  const topics: ImageTopic[] = [
+    {
+      topic: 'Catalog',
+      layout: 'table',
+      items: [{ query: 'Lotus', alt: 'Lotus', caption: 'Aquatic plant' }],
+    },
+    { topic: 'Habitat', layout: 'collage', query: 'Habitat', alt: 'Habitat' },
+    { topic: 'Garden', layout: 'strip', query: 'Garden', alt: 'Garden', count: 2 },
+  ]
+  const result = await f.prepare(topics)
+  expect(result.topics.map(({ layout, images }) => [layout, images.length])).toEqual([
+    ['table', 1],
+    ['collage', 3],
+    ['strip', 2],
+  ])
+  const tool = f.ctx.tools.get('reply_images_prepare')!
+  expect(tool.presentCall?.({ topics })).toMatchObject({
+    rawInput: 'Catalog (table), Habitat (collage), Garden (strip)',
+  })
+  await expect(
+    f.execute('reply_images_prepare', { topics: [{ ...topics[1], layout: 'invalid' }] }),
+  ).rejects.toMatchObject({ code: 'INVALID_ARGS' })
 })
 
 it('rejects invalid arguments through the tool schema', async () => {

@@ -4,10 +4,17 @@ import { Config, resolveConfig } from '../src/config.js'
 it('defaults to Wikimedia first and retains bounded image and network budgets', () => {
   const config = resolveConfig()
   expect(config.providers).toEqual(['wikimedia', 'baidu', 'so360', 'bing'])
-  expect(config.maxImagesPerTurn).toBe(3)
-  expect(config.maxSearchesPerTurn).toBe(3)
+  expect(config.maxImagesPerTurn).toBe(8)
+  expect(config.maxSearchesPerTurn).toBe(6)
+  expect(config.maxCandidates).toBe(10)
   expect(config.allowFakeIpDns).toBe(false)
   expect(resolveConfig(Config({}))).toEqual(config)
+})
+
+it('accepts each legal maximum through both configuration entry points', () => {
+  const limits = { maxImagesPerTurn: 16, maxSearchesPerTurn: 12, maxCandidates: 20 }
+  expect(resolveConfig(limits)).toMatchObject(limits)
+  expect(resolveConfig(Config(limits))).toMatchObject(limits)
 })
 
 it.each([
@@ -15,7 +22,8 @@ it.each([
   { providers: ['baidu', 'baidu'] },
   { providers: ['unknown'] },
   { maxImagesPerTurn: 0 },
-  { maxImagesPerTurn: 9 },
+  { maxImagesPerTurn: 17 },
+  { maxSearchesPerTurn: 13 },
   { maxSearchesPerTurn: 1.5 },
   { requestTimeoutMs: -1 },
   { maxImageBytes: 0 },

@@ -4,7 +4,7 @@ Documentation is maintained in English.
 
 An independent TypeScript community bundle that adds relevant real images to DeepSeek Harness answers. It uses official Harness services, with no dependency on third-party DSH search/display plugins. This project owns provider adapters, downloading and candidate handling; ordinary runtime dependencies include Zod, Cheerio and ipaddr.js.
 
-Detailed answers about people, organizations, news, products and places now receive direct guidance to consider relevant images. The model can use `reply_images_prepare` once to search and save up to three subject-linked images, with copy-ready Markdown, source and license captions, and separate warnings for each topic. The default per-turn budget is three searches and three images; failed sources leave successful images intact and allow a text answer.
+Detailed answers about people, organizations, news, products and places receive guidance to use relevant images only when they add visual value. In one `reply_images_prepare` call, the model can create standard Markdown tables, three-image collages, strips of up to five views, or ordinary inline images. The default per-turn budgets are six searches and eight images. Failed or duplicate candidates are skipped, successful images retain source and license captions, and unavailable images leave a useful text answer.
 
 An optional DSH Web client entry presents image tables as compact, responsive image rows or comparison groups and adds keyboard-accessible zoom for ordinary Markdown images. It does not replace host Markdown: without the client, images remain standard Markdown. DSH's own image viewer remains in place wherever the host already provides one.
 
@@ -34,9 +34,9 @@ Override the installed row in your profile's `cordis.patch.yml`:
   config:
     providers: [wikimedia, baidu, so360, bing]
     automatic: true
-    maxImagesPerTurn: 3
-    maxSearchesPerTurn: 3
-    maxCandidates: 6
+    maxImagesPerTurn: 8
+    maxSearchesPerTurn: 6
+    maxCandidates: 10
     requestTimeoutMs: 8000
     maxImageBytes: 5242880
     maxSearchBytes: 3145728
@@ -52,7 +52,7 @@ Enable `allowFakeIpDns` only for a known proxy Fake-IP setup. It additionally al
 
 ## Behavior and limits
 
-`reply_images_prepare({ topics: [{ topic, query, alt }] })` reserves the complete batch against remaining search and image budgets before network access. Detailed multi-section answers are guided to submit three distinct topics and insert each successful topic's `markdown` immediately after the matching section; `placement` states where it belongs, while single-line `tableMarkdown` is for image-table cells. The first usable result is saved for each topic; one failure does not discard other images. `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` remain available for exact candidate selection. All saved images use Harness attachments and the existing authenticated Web or Desktop image paths. Preserve attachment storage to retain access after restart.
+`reply_images_prepare` reserves the complete batch against the remaining search and image budgets before network access. Each topic accepts `{ topic, query, alt, layout?, count? }` or `{ topic, layout?, items: [{ query, alt, caption? }] }`. A query with `count` uses one search. Each item uses one search and one image slot. Insert each successful topic's `markdown` after the matching section. Use `tableMarkdown` for existing image-table cells. `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` support exact candidate selection. Saved images use Harness attachments and authenticated Web or Desktop image paths. Preserve attachment storage to retain access after restart.
 
 Tool use and placement depend on the model following instructions. Selection uses titles and sources; the plugin does not inspect visual contents or guarantee relevance. Search thumbnails limit resolution. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Disabling the plugin removes its Web image route; re-enable it with the attachment store preserved to display old images. Desktop paths follow the official filesystem access policy and become invalid if attachment storage moves.
 

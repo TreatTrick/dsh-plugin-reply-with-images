@@ -5,7 +5,7 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools'
 import type { ReplyScope } from './candidates.js'
-import type { ReplyImages } from './replyImages.js'
+import { imageLayouts, type ReplyImages } from './replyImages.js'
 
 const scopeFor = (ctx: Context, execution: ToolRunContext): ReplyScope => {
   const owner = execution.agent
@@ -23,13 +23,13 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
     defineTool({
       name: 'reply_images_prepare',
       description:
-        'Prepare up to three subject-linked inline images in one call. For a detailed answer with multiple visual sections, submit exactly three distinct topics by default and consume every successful topic in the matching section. Use fewer only when fewer relevant subjects exist or the remaining budget is smaller. Each topic needs a short label, a focused search query, and accessible alt text. The ordered topics[] result includes per-topic placement guidance, copy-ready Markdown, table Markdown, source/license metadata, and independent warnings; do not paste only the aggregate markdown.',
+        'Use once when images add positive visual value. Skip short answers, code, abstract topics, and text-only requests. Prepare 1–5 distinct image sections using table for people, entities, and visual comparisons; collage for one main scene and two related views; strip for different moments or angles of one subject; or single beside one paragraph. Insert every successful topics[].markdown in its matching section and retain every source, author, and license caption. Use tableMarkdown inside existing table cells. Search and image budgets are separate.',
       parameters: {
         topics: {
           type: 'array',
           required: true,
           description:
-            'Ordered, distinct image topics to place beside matching answer sections. Use exactly three for a detailed multi-section answer unless fewer relevant subjects or budget remain.',
+            '1–5 ordered, distinct image sections. Use query and alt with optional count, or use items for one image per subquery.',
           items: {
             type: 'object',
             additionalProperties: false,
@@ -39,15 +39,47 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                 required: true,
                 description: 'Short subject label that identifies the matching answer section.',
               },
+              layout: {
+                type: 'string',
+                enum: imageLayouts,
+                description:
+                  'Defaults to single. Use table for a directory or comparison, collage for three complementary views, or strip for a gallery.',
+              },
               query: {
                 type: 'string',
-                required: true,
-                description: 'Focused image search query for this distinct topic.',
+                description:
+                  'Focused query for the whole topic. Required with alt when items is omitted.',
               },
               alt: {
                 type: 'string',
-                required: true,
                 description: 'Accessible image label without unverified visual claims.',
+              },
+              count: {
+                type: 'integer',
+                enum: [1, 2, 3, 4, 5],
+                description:
+                  'Target images from one search. Defaults to 3 for collage/strip and 1 for single/table.',
+              },
+              items: {
+                type: 'array',
+                description:
+                  '1–5 subqueries, each requesting one image. Omit query, alt, and count when using items.',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    query: { type: 'string', required: true, description: 'Focused subquery.' },
+                    alt: {
+                      type: 'string',
+                      required: true,
+                      description: 'Accessible description of this image.',
+                    },
+                    caption: {
+                      type: 'string',
+                      description: 'Optional short table description (up to 240 characters).',
+                    },
+                  },
+                },
               },
             },
           },
@@ -74,6 +106,12 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                 additionalProperties: false,
                 properties: {
                   topic: { type: 'string', required: true },
+                  layout: {
+                    type: 'string',
+                    enum: imageLayouts,
+                    required: true,
+                    description: 'Effective layout after accounting for unavailable images.',
+                  },
                   placement: {
                     type: 'string',
                     required: true,
@@ -82,7 +120,8 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                   markdown: {
                     type: 'string',
                     required: true,
-                    description: 'Use after the matching paragraph or section heading.',
+                    description:
+                      'Copy-ready image, gallery, or complete table for the matching section.',
                   },
                   tableMarkdown: {
                     type: 'string',
@@ -98,6 +137,11 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                       properties: {
                         title: { type: 'string', required: true },
                         markdown: { type: 'string', required: true },
+                        tableMarkdown: {
+                          type: 'string',
+                          required: true,
+                          description: 'Single-line image and attribution for a table cell.',
+                        },
                         sourceUrl: { type: 'string', required: true },
                         license: { type: 'string', required: true },
                         attachmentId: { type: 'string', required: true },
@@ -119,7 +163,7 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
         card: 'generic',
         title: 'Prepare inline images',
         kind: 'fetch',
-        rawInput: args.topics.map((row) => row.topic).join(', '),
+        rawInput: args.topics.map((row) => `${row.topic} (${row.layout ?? 'single'})`).join(', '),
       }),
     }),
   )

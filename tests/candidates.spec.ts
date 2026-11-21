@@ -47,3 +47,15 @@ it('rejects duplicate or consumed candidates and invalidates candidates after cl
   store.clear(scope.owner)
   expect(() => store.claim(scope, [id], 2)).toThrow(/expired/)
 })
+
+it('independently reserves search and image counts without charging a rejected batch', () => {
+  const store = new CandidateStore()
+  store.reservePreparation(scope, 1, 4, 3, 5)
+  const budget = expect.objectContaining({ code: 'REPLY_IMAGES_BUDGET_EXCEEDED' })
+  expect(() => store.reservePreparation(scope, 1, 2, 3, 5)).toThrow(budget)
+  expect(() => store.reservePreparation(scope, 3, 1, 3, 5)).toThrow(budget)
+  store.reservePreparation(scope, 2, 1, 3, 5)
+  expect(() => store.reserveSearch(scope, 3)).toThrow(budget)
+  expect(() => store.reservePreparation({ owner: {}, turn: 1 }, 3, 5, 3, 5)).not.toThrow()
+  expect(() => store.reservePreparation({ ...scope, turn: 2 }, 3, 5, 3, 5)).not.toThrow()
+})

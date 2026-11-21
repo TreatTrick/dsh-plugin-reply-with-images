@@ -3,6 +3,8 @@ lib/
 coverage/
 .preview/
 .impeccable/
+.agent/skills/
+.agent/workflows/
 package-lock.json
 docs/plans/
 preview.html

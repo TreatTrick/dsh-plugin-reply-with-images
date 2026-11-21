@@ -14,6 +14,7 @@ interface TurnState {
   turn: number
   candidates: Map<string, Candidate>
   claimed: Set<string>
+  attachments: Set<string>
   searches: number
   images: number
 }
@@ -41,12 +42,21 @@ export class CandidateStore {
         turn: scope.turn,
         candidates: new Map(),
         claimed: new Set(),
+        attachments: new Set(),
         searches: 0,
         images: 0,
       }
       this.states.set(scope.owner, state)
     }
     return state
+  }
+
+  /** 记录同一轮已展示的附件，避免后续准备重复使用。 */
+  rememberAttachment(scope: ReplyScope, id: string): boolean {
+    const { attachments } = this.state(scope)
+    if (attachments.has(id)) return false
+    attachments.add(id)
+    return true
   }
 
   /** Each network search consumes one search allowance, even if the provider fails. */
@@ -63,18 +73,19 @@ export class CandidateStore {
   /** 在开始准备图片前原子预留整批搜索与图片额度。 */
   reservePreparation(
     scope: ReplyScope,
-    count: number,
+    searchCount: number,
+    imageCount: number,
     searchLimit: number,
     imageLimit: number,
   ): void {
     const state = this.state(scope)
-    if (state.searches + count > searchLimit || state.images + count > imageLimit)
+    if (state.searches + searchCount > searchLimit || state.images + imageCount > imageLimit)
       throw new ReplyImagesError(
-        `Preparing ${count} images exceeds the remaining per-turn budget. Continue with a text answer or request fewer images.`,
+        `Preparing ${imageCount} images with ${searchCount} searches exceeds the remaining per-turn budget. Continue with text or request fewer images.`,
         'REPLY_IMAGES_BUDGET_EXCEEDED',
       )
-    state.searches += count
-    state.images += count
+    state.searches += searchCount
+    state.images += imageCount
   }
 
   /** Publish candidates with unique IDs; new turns do not inherit previous candidates. */
@@ -89,20 +100,6 @@ export class CandidateStore {
 
   /** Validate the entire selection and reserve its budget atomically, rejecting duplicate, used, or foreign IDs. */
   claim(scope: ReplyScope, ids: readonly string[], limit: number): Candidate[] {
-    return this.claimCandidates(scope, ids, limit, true)
-  }
-
-  /** 消费已经由 prepare 预留图片额度的候选。 */
-  claimPrepared(scope: ReplyScope, ids: readonly string[]): Candidate[] {
-    return this.claimCandidates(scope, ids, 0, false)
-  }
-
-  private claimCandidates(
-    scope: ReplyScope,
-    ids: readonly string[],
-    limit: number,
-    reserveImages: boolean,
-  ): Candidate[] {
     const state = this.state(scope)
     if (ids.length === 0 || new Set(ids).size !== ids.length)
       throw new ReplyImagesError(
@@ -118,12 +115,12 @@ export class CandidateStore {
         )
       return image
     })
-    if (reserveImages && state.images + ids.length > limit)
+    if (state.images + ids.length > limit)
       throw new ReplyImagesError(
         `At most ${limit} images may be displayed per turn. Continue with a text answer.`,
         'REPLY_IMAGES_BUDGET_EXCEEDED',
       )
-    if (reserveImages) state.images += ids.length
+    state.images += ids.length
     ids.forEach((id) => state.claimed.add(id))
     return selected
   }
