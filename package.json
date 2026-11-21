@@ -1,7 +1,34 @@
 {
   "name": "dsh-plugin-reply-with-images",
-  "version": "0.1.3",
-  "description": "Search and persist relevant images for DeepSeek Harness replies",
+  "version": "0.1.4",
+  "description": "Add real, context-aware reference images to DeepSeek Harness replies — portrait tables, 3-image collages, multi-angle strips & durable attachments",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "deepseek-harness",
+    "deepseek-plugin",
+    "cordis",
+    "cordis-plugin",
+    "ai-agent",
+    "llm",
+    "image-search",
+    "illustrated-answers",
+    "markdown-images",
+    "rich-media",
+    "wikimedia",
+    "reply-with-images"
+  ],
+  "homepage": "https://github.com/TreatTrick/dsh-plugin-reply-with-images#readme",
+  "bugs": {
+    "url": "https://github.com/TreatTrick/dsh-plugin-reply-with-images/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TreatTrick/dsh-plugin-reply-with-images.git"
+  },
+  "author": "TreatTrick",
+  "icon": "assets/icon.svg",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -15,6 +42,7 @@
   },
   "files": [
     "lib",
+    "assets/icon.svg",
     "cordis.patch.yml",
     "README.md",
     "README.zh.md"

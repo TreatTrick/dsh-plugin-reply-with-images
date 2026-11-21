@@ -163,7 +163,8 @@ it('prepares three ordered visual topics with per-section placement guidance and
   ).toEqual([])
   const prepareTool = f.ctx.tools.get('reply_images_prepare')!
   const outputSchema = prepareTool.output.schema as any
-  expect(prepareTool.description).toContain('positive visual value')
+  expect(prepareTool.description).toContain('experimental phenomena, diagrams')
+  expect(prepareTool.description).not.toContain('abstract topics')
   expect(prepareTool.description).toContain('Paste each successful topic.markdown verbatim')
   expect(prepareTool.description).toContain('title marker, and source, author, and license caption')
   expect(prepareTool.description).toContain('2–3 complementary blocks')
@@ -300,11 +301,14 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('Unknown licenses do not prevent an in-chat reference preview')
   expect(prompt).toContain('Do not claim that an image is licensed for republication')
   expect(prompt).toContain('Use a concise subject-first search query')
-  expect(prompt).toContain('First decide whether images add positive visual value')
-  expect(prompt).toContain('use reply_images_prepare once')
   expect(prompt).toContain(
-    'Skip short answers, code, abstract explanations, math, and text-only requests',
+    'Prefer illustrated answers whenever real photos, experimental phenomena, diagrams',
   )
+  expect(prompt).toContain('call reply_images_prepare once')
+  expect(prompt).toContain(
+    'Do not skip conceptual or explanatory topics just because they are scientific or theoretical',
+  )
+  expect(prompt).not.toContain('abstract explanations')
   for (const layout of ['table', 'collage', 'strip', 'single']) expect(prompt).toContain(layout)
   expect(prompt).toContain('8 image searches and display at most 12 images')
   expect(prompt).toContain('consume every topic that has images')

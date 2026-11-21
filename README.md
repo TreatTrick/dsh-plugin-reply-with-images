@@ -1,38 +1,141 @@
-# DSH Reply with images
+<div align="center">
 
-Documentation is maintained in English.
+<img src="assets/icon.svg" alt="DSH Reply with Images" width="84" height="84" />
 
-An independent TypeScript community bundle that adds relevant real images to DeepSeek Harness answers. It uses official Harness services, with no dependency on third-party DSH search/display plugins. This project owns provider adapters, downloading and candidate handling; ordinary runtime dependencies include Zod, Cheerio and ipaddr.js.
+# DSH Reply with Images
 
-Detailed answers about people, organizations, news, products and places receive guidance to use relevant images only when they add visual value. In one `reply_images_prepare` call, the model can prepare up to six sections using standard Markdown tables, three-image collages, strips of up to five views, or ordinary inline images. The default per-turn budgets are eight searches and twelve images (configurable up to sixteen searches and twenty images). Candidate ranking favors relevant official sites, encyclopedias and mainstream media over watermarked stock sites and unsolicited SEO gossip. Failed or duplicate candidates are skipped, successful images retain source and license captions, and unavailable images leave a useful text answer.
+**Turn dense walls of AI text into magazine-grade illustrated answers in DeepSeek Harness.**
 
-An optional DSH Web client entry presents image tables as compact, responsive image rows or comparison groups and adds keyboard-accessible zoom for ordinary Markdown images. It does not replace host Markdown: without the client, images remain standard Markdown. DSH's own image viewer remains in place wherever the host already provides one.
+Automatically search, rank, lay out, and persist real reference images — portrait directory tables, 3-image collages, multi-angle strips, and inline cards — directly inside your DSH conversations.
 
-## Install
+[![CI](https://github.com/TreatTrick/dsh-plugin-reply-with-images/actions/workflows/ci.yml/badge.svg)](https://github.com/TreatTrick/dsh-plugin-reply-with-images/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.1.4-4f46e5.svg)](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases)
+[![DSH Plugin](https://img.shields.io/badge/DSH-0.2.x_plugin-2563eb.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![Node](https://img.shields.io/badge/node-%3E%3D24.9-339933.svg)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-eab308.svg)](LICENSE)
 
-Requires Node ≥24.9 and the official `agents`, `tools`, `systemPrompt`, `attachments`, `connection`, and `webServer` services from a Web/Desktop profile. The tested SDK baseline is DSH `0.2.2-rc.3`; other versions within the declared range require compatibility verification. A headless-only profile cannot supply the display environment.
+**English** | [简体中文](README.zh.md)
+
+[Live Demos](#-see-it-in-action) · [Features](#-why-reply-with-images) · [Quick Install](#-quick-install) · [Configuration](#-configuration) · [Development](#-development--local-preview)
+
+</div>
+
+---
+
+## ✨ See It in Action
+
+Real unedited DeepSeek Harness conversations powered by `dsh-plugin-reply-with-images`:
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Company & Product Deep-Dive (Anthropic)</strong><br />
+      <sub>Multi-section breakdown + 3-image horizontal strip + source attribution pills</sub>
+      <br /><br />
+      <img src="docs/assets/demo-anthropic-en.webp" alt="Anthropic illustrated overview in DeepSeek Harness" width="100%" />
+    </td>
+    <td align="center" width="50%">
+      <strong>Breaking News & Key Figures (Jensen Huang)</strong><br />
+      <sub>Structured timeline + compact portrait directory cards (<code>table</code> layout)</sub>
+      <br /><br />
+      <img src="docs/assets/demo-jensen-en.webp" alt="Jensen Huang news analysis with portrait directory cards in DeepSeek Harness" width="100%" />
+    </td>
+  </tr>
+</table>
+
+> **Tip:** Click either demo to view it full-size. All images are persisted through official Harness attachment storage and remain visible after restarts.
+
+### Try These Prompts After Installing
+
+- _"Give me a structured overview of Anthropic — founding team, Claude product lineup, and revenue trajectory."_
+- _"Summarize the latest Jensen Huang / Nvidia Megaspeed story and list the key figures involved."_
+- _"Explain how quantum tunneling works with real experimental setups and diagrams."_
+- _"Compare the architecture and landmarks of Kyoto, Prague, and Lisbon for a 5-day trip."_
+
+---
+
+## 🚀 Why Reply with Images?
+
+| Capability                     | What You Get                                                                                                                                                                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **4 Adaptive Visual Layouts**  | Plans up to 6 visual sections in a single `reply_images_prepare` call — **Portrait / Entity Directory Tables** (`table`), **3-Image Collages** (`collage`), **Multi-Angle Strips** (`strip`, up to 5 views), and **Inline Singles** (`single`).     |
+| **Smart Topic Coverage**       | Automatically illustrates people, organizations, breaking news, products, places, history, nature, **plus science, physics, experiments, and diagrams** — while staying out of the way for pure code, debugging, one-liners, or text-only requests. |
+| **Multi-Provider Resilience**  | Built-in fallback chain (`Bing → 360 → Baidu → Wikimedia Commons`) with zero dependency on third-party DSH search/display plugins.                                                                                                                  |
+| **Signal Over Noise Ranking**  | Favors official websites, encyclopedias, and mainstream media while downranking watermarked stock galleries and SEO clutter; broken or duplicate candidates are skipped automatically.                                                              |
+| **Built-in Web Client Polish** | Optional DSH Web client renders compact, responsive image rows/cards on desktop and mobile with keyboard-accessible zoom — and gracefully stays standard Markdown wherever the client isn't loaded.                                                 |
+| **Durable & Authenticated**    | Saves media via official Harness attachments (`dsh-attachment`). Uses authenticated same-origin routes in Web (no tokens embedded in URLs) and native local file channels in Desktop.                                                               |
+
+---
+
+## 📦 Quick Install
+
+**Requirements:** Node `>= 24.9` and a Web or Desktop DeepSeek Harness profile (`>=0.2.2-rc.3 <0.3.0`) providing the official `agents`, `tools`, `systemPrompt`, `attachments`, `connection`, and `webServer` services. _(Headless-only profiles cannot supply the display environment.)_
+
+### Option 1: Install the Pre-Built Package (Fastest)
+
+Download `dsh-plugin-reply-with-images-0.1.4.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) (or pack it locally with `npm pack`).
+
+#### DSH Web
 
 ```sh
-npm ci
-npm run check
-npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.3.tgz
-dsh --profile web --dump-config
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.4.tgz
 dsh --profile web
 ```
 
-Use an existing Web-capable profile in place of `web`. This package has not been published to npm. For linked development, build first, then use `dsh plugin --profile web add .`.
+#### DSH Desktop
 
-For Desktop, fully quit the application, run `plugin --profile desktop add <tarball-path>` with that installation's bundled `dsh`, then reopen Desktop. On Windows, the command is under `resources/runtime/cli/bin/dsh.cmd` in the installation directory. Version `0.1.1` fixes Desktop image authentication; version `0.1.2` enables licensed Wikimedia search by default and accepts its current thumbnail URLs; version `0.1.3` tells the model to use three distinct images across detailed multi-section answers. Generate a new answer after upgrading; existing answer URLs are not migrated.
+1. **Fully quit** DeepSeek Harness Desktop.
+2. Run the bundled `dsh` CLI from your Desktop installation directory:
 
-## Configure
+   **Windows (PowerShell):**
 
-Override the installed row in your profile's `cordis.patch.yml`:
+   ```powershell
+   & "<DSH_INSTALL_DIR>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add .\dsh-plugin-reply-with-images-0.1.4.tgz
+   ```
+
+   **macOS / Linux:**
+
+   ```sh
+   dsh plugin --profile desktop add ./dsh-plugin-reply-with-images-0.1.4.tgz
+   ```
+
+3. **Reopen** DeepSeek Harness Desktop and start a new conversation.
+
+### Option 2: Build & Install from Source
+
+```sh
+git clone https://github.com/TreatTrick/dsh-plugin-reply-with-images.git
+cd dsh-plugin-reply-with-images
+npm ci
+npm run check
+npm pack
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.4.tgz
+dsh --profile web
+```
+
+> **Linked development:** Run `npm run build` first, then `dsh plugin --profile web add .`.
+>
+> **Verify installation:** Run `dsh --profile web --dump-config` to confirm `reply-with-images` is registered in your profile. Replace `web` with your own Web-capable profile name if customized.
+
+### Upgrading Notes
+
+- Upgrading does not rewrite image URLs in older messages — open a **new conversation** to test updated behavior.
+- **Release highlights:**
+  - `0.1.4`: Expands automatic visual illustration to science, experiments, and diagrams; refines multi-block layout selection and package/discovery metadata.
+  - `0.1.3`: Encourages mixed multi-section visual layouts (tables, collages, strips) across detailed answers.
+  - `0.1.2`: Adds Wikimedia Commons licensed search and thumbnail URL support.
+  - `0.1.1`: Fixes Desktop image authentication via the native file-image channel.
+
+---
+
+## ⚙️ Configuration
+
+Override the plugin row in your profile's `cordis.patch.yml` (or edit via the Cordis settings panel):
 
 ```yaml
 - id: reply-with-images
   config:
-    providers: [wikimedia, baidu, so360, bing]
+    providers: [bing, so360, baidu, wikimedia]
     automatic: true
     maxImagesPerTurn: 12
     maxSearchesPerTurn: 8
@@ -42,30 +145,66 @@ Override the installed row in your profile's `cordis.patch.yml`:
     maxSearchBytes: 3145728
     allowFakeIpDns: false
     publicBaseUrl: ''
+    debugLog: true
+    debugLogPath: ''
 ```
 
-Set `automatic: false` to guide the model to search only on explicit image requests. Wikimedia runs first to provide source license metadata; Baidu, 360, and Bing are fallbacks. If Commons is unreachable from the current network, search continues with the configured providers. All providers can fail or throttle; queries are sent to the configured providers.
+| Option               | Default                           | Description                                                                                                         |
+| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `providers`          | `[bing, so360, baidu, wikimedia]` | Ordered fallback list of image search providers (1–4 unique entries).                                               |
+| `automatic`          | `true`                            | Automatically illustrate helpful answers. Set to `false` to search only when the user explicitly asks for images.   |
+| `maxImagesPerTurn`   | `12`                              | Max images displayed per turn (`1–20`).                                                                             |
+| `maxSearchesPerTurn` | `8`                               | Max search requests per turn (`1–16`).                                                                              |
+| `maxCandidates`      | `10`                              | Max candidates returned per search (`1–20`).                                                                        |
+| `requestTimeoutMs`   | `8000`                            | Per-request network timeout in milliseconds (up to `60000`).                                                        |
+| `maxImageBytes`      | `5242880`                         | Max downloaded image size in bytes (5 MiB default, up to 20 MiB).                                                   |
+| `maxSearchBytes`     | `3145728`                         | Max search payload size in bytes (3 MiB default, up to 10 MiB).                                                     |
+| `allowFakeIpDns`     | `false`                           | Enable only for known proxy Fake-IP setups (`198.18.0.0/15` and `2001:2::/48`); all other private IPs stay blocked. |
+| `publicBaseUrl`      | `''`                              | Browser-facing Harness origin (including any path prefix) for reverse-proxy Web deployments. Ignored on Desktop.    |
+| `debugLog`           | `true`                            | Write bounded local JSONL diagnostics for troubleshooting image searches.                                           |
+| `debugLogPath`       | `''`                              | Custom path for local JSONL diagnostics.                                                                            |
 
-In Web profiles, leave `publicBaseUrl` empty to use the official WebServer origin. For remote/reverse-proxy deployments, set the exact browser-facing same-origin URL, including any path prefix, and forward `/api/reply-images` under that prefix to Harness with official authentication. No auth token is embedded in image URLs. Changing the origin/path requires migrating absolute URLs in existing answers; stored attachments remain intact. Desktop automatically uses provider-owned local image paths through its authenticated native file-image channel, ignoring `publicBaseUrl`; the local attachment backend and client filesystem must refer to the same host.
+<details>
+<summary><strong>Networking, Reverse Proxy &amp; Behavior Details</strong></summary>
 
-Enable `allowFakeIpDns` only for a known proxy Fake-IP setup. It additionally allows `198.18.0.0/15` and `2001:2::/48`; all other private addresses remain blocked. Requests use Node HTTPS and do not automatically consume `HTTP_PROXY`/`HTTPS_PROXY`.
+- **Reverse proxies (Web):** Leave `publicBaseUrl` empty to use the official WebServer origin. Behind a reverse proxy, set the exact browser-facing same-origin URL (including path prefix) and forward `/api/reply-images` under that prefix to Harness with official authentication. No auth token is ever embedded in image URLs. Changing the origin/path requires migrating absolute URLs in existing answers; stored attachments remain intact.
+- **Desktop:** Automatically uses provider-owned local image paths through DSH Desktop's authenticated native file-image channel, ignoring `publicBaseUrl`. Keep the local attachment store on the same host filesystem.
+- **Proxy / Fake-IP DNS:** Requests use Node HTTPS and do not automatically consume `HTTP_PROXY`/`HTTPS_PROXY`. Only enable `allowFakeIpDns` when running inside a known Fake-IP proxy environment.
+- **Tool architecture:** `reply_images_prepare` reserves the complete batch against remaining search and image budgets before network access. Each topic accepts `{ topic, query, alt, layout?, count? }` or `{ topic, layout?, items: [{ query, alt, caption? }] }`. Step-by-step tools `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` remain supported for exact candidate selection.
+- **Known limits:** Tool usage and placement depend on the model following prompt guidance. Candidate ranking relies on metadata/titles/sources rather than visual inspection. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Unofficial web endpoints (`bing`, `so360`, `baidu`) may throttle or return CAPTCHAs; failures fall back cleanly to text answers.
+- **Attribution & Rights:** Unknown image licenses remain visibly labeled as unconfirmed without blocking in-chat reference display. Source attribution does not grant republication rights — verify image rights before public or commercial reuse.
 
-## Behavior and limits
+</details>
 
-`reply_images_prepare` reserves the complete batch against the remaining search and image budgets before network access. Each topic accepts `{ topic, query, alt, layout?, count? }` or `{ topic, layout?, items: [{ query, alt, caption? }] }`. A query with `count` uses one search. Each item uses one search and one image slot. Insert each successful topic's `markdown` after the matching section. Use `tableMarkdown` for existing image-table cells. `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` support exact candidate selection. Saved images use Harness attachments and authenticated Web or Desktop image paths. Preserve attachment storage to retain access after restart.
+---
 
-Tool use and placement depend on the model following instructions. Selection uses titles and sources; the plugin does not inspect visual contents or guarantee relevance. Search thumbnails limit resolution. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Disabling the plugin removes its Web image route; re-enable it with the attachment store preserved to display old images. Desktop paths follow the official filesystem access policy and become invalid if attachment storage moves.
+## 🛠️ Development & Local Preview
 
-Baidu, 360 and Bing use unofficial web endpoints that may change or return CAPTCHAs. Failures return bounded diagnostics and allow text fallback. Unknown image licenses stay marked as unconfirmed; this caption does not block downloads or display. Source attribution does not grant republication rights. The MIT license covers code only. Verify image rights before public/commercial reuse.
+```sh
+npm run check          # Prettier + strict TypeScript + offline coverage tests + build + client bundle check
+npm run pack:check     # Inspect tarball contents before publishing
+```
 
-## Develop
+### Local Previews
 
-`npm run check` runs formatting, strict TypeScript, offline coverage tests and the build. `npm run pack:check` inspects package contents. CI targets Node 24 on Windows, Linux and macOS. Tests cover adapters, DNS/download constraints, turn budgets, concurrent selection, cancellation, disposal, tool rendering and durable storage through the real official attachment backend. See [CONTRIBUTING.md](CONTRIBUTING.md) for iteration guidance.
+- **Illustrated answer preview:** Run `npm run preview:generate` (optionally with `-- --allow-fake-ip-dns`) and open `preview.html` to see a self-contained illustrated reply generated from live queries.
+- **Web client layout preview:** Run `npm run preview:client` and open `client-preview.html` to inspect portrait directory cards, 3-image collages, horizontal strips, comparison tables, dark/light themes, and keyboard zoom.
 
-## Preview
+CI validates Node 24 across **Windows, Linux, and macOS**. See [CONTRIBUTING.md](CONTRIBUTING.md) for module responsibilities, testing rules, and coverage standards.
 
-Run `npm run preview:generate`, then open the locally generated `preview.html` for a self-contained illustrated answer. Run `npm run preview:client`, then open `client-preview.html` to inspect the compiled DSH Web client against portrait directory cards, collages, image strips and comparison tables. Generic directory headers remain accessible to screen readers while visually hidden, and source captions use compact links. The latter uses remote preview images; it does not download or package them. Both previews are demonstrations, not full model-session acceptance tests, and generated HTML stays local.
+---
 
-Regenerate with `npm run preview:generate`, optionally appending `-- --allow-fake-ip-dns` for a known Fake-IP network. This sends two example queries online. Both images must succeed before replacing the preview; diagnostics and attachments live in ignored `.preview/`.
+## 📄 Disclaimer & License
 
-Implementation follows the official [bundle installation](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), [tool authoring](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/cookbook/adding-a-tool.md), and [attachment](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/attachment.md) documentation, checked against the local Harness checkout. This is a community plugin, unaffiliated with DeepSeek/OpenAI, and does not install into ChatGPT.
+- Built against the official DeepSeek Harness [bundle installation](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md), [tool authoring](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/cookbook/adding-a-tool.md), and [attachment](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/attachment.md) guides.
+- This is an independent community plugin, unaffiliated with DeepSeek or OpenAI, and does not install into ChatGPT.
+- Code is licensed under the [MIT License](LICENSE). Third-party images retrieved during chat remain the property of their respective copyright holders.
+
+---
+
+<div align="center">
+
+**Enjoying richer, more readable answers in DeepSeek Harness?**  
+Consider giving this repository a ⭐ — it helps more DSH users discover the plugin!
+
+</div>

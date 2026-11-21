@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="55%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="photo" x1="34" y1="30" x2="94" y2="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <linearGradient id="hill1" x1="34" y1="54" x2="72" y2="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E3A8A"/>
+      <stop offset="100%" stop-color="#312E81"/>
+    </linearGradient>
+    <linearGradient id="hill2" x1="56" y1="56" x2="94" y2="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3730A3"/>
+      <stop offset="100%" stop-color="#4C1D95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App badge background -->
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#bg)"/>
+  <rect x="7" y="7" width="114" height="114" rx="27" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- Chat reply card -->
+  <path d="M24 34C24 27.3726 29.3726 22 36 22H92C98.6274 22 104 27.3726 104 34V84C104 90.6274 98.6274 96 92 96H52L35 107.5C33.3 108.65 31 107.43 31 105.38V96H36C29.3726 96 24 90.6274 24 84V34Z" fill="#FFFFFF" fill-opacity="0.96"/>
+
+  <!-- Embedded image frame -->
+  <rect x="34" y="31" width="60" height="41" rx="8" fill="url(#photo)"/>
+  <circle cx="80" cy="43" r="5" fill="#FEF08A"/>
+  <path d="M34 65L50 49.5C51.6 47.95 54.15 47.95 55.75 49.5L70 63.5V72H42C37.5817 72 34 68.4183 34 64V65Z" fill="url(#hill1)"/>
+  <path d="M56 72L71.5 56.5C73.1 54.9 75.7 54.9 77.3 56.5L94 72H56Z" fill="url(#hill2)"/>
+  <rect x="34" y="31" width="60" height="41" rx="8" stroke="#1E1B4B" stroke-opacity="0.08" stroke-width="1.5"/>
+
+  <!-- Reply text lines below image -->
+  <rect x="34" y="79" width="42" height="5" rx="2.5" fill="#334155"/>
+  <rect x="34" y="87" width="26" height="4" rx="2" fill="#94A3B8"/>
+
+  <!-- Accent sparkle -->
+  <path d="M99 18L101.6 24.4L108 27L101.6 29.6L99 36L96.4 29.6L90 27L96.4 24.4L99 18Z" fill="#FDE047"/>
+</svg>
