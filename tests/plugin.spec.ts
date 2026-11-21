@@ -166,7 +166,7 @@ it('prepares three ordered visual topics with per-section placement guidance and
   expect(prepareTool.description).toContain('positive visual value')
   expect(prepareTool.description).toContain('Paste each successful topic.markdown verbatim')
   expect(prepareTool.description).toContain('title marker, and source, author, and license caption')
-  expect(prepareTool.description).toContain('2–4 complementary blocks')
+  expect(prepareTool.description).toContain('2–3 complementary blocks')
   expect(prepareTool.description).toContain('License unconfirmed')
   expect(prepareTool.description).toContain('Never discard')
   expect(prepareTool.description).toContain('official sites, encyclopedias, or mainstream media')
@@ -311,15 +311,87 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('never paste only the aggregate Markdown at the top')
   expect(prompt).toContain('Retain all source, author, and license captions')
   expect(prompt).toContain('Do not present an unverified private image as evidence')
-  expect(prompt).toContain('2–4 complementary blocks')
+  expect(prompt).toContain('2–3 complementary blocks')
   expect(prompt).toContain('License unconfirmed is normal for search-engine reference images')
   expect(prompt).toContain('Never discard')
   expect(prompt).toContain('official sites, encyclopedias, or mainstream media')
   expect(prompt).toContain('solely because its license is unconfirmed')
-  expect(prompt).toContain(
-    'still keep the table for the remaining public figures and organizations',
-  )
+  expect(prompt).toContain('Never abandon table because a person has no photo')
 })
+
+it.each(['system prompt', 'tool description'] as const)(
+  'requires mixed layouts for long multi-section answers in the %s',
+  async (source) => {
+    const f = await fixture()
+    const guidance =
+      source === 'system prompt'
+        ? (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
+        : f.ctx.tools.get('reply_images_prepare')!.description
+    expect(guidance).toContain(
+      'must plan 2–3 complementary blocks in one reply_images_prepare call',
+    )
+    expect(guidance).toContain('Prefer table plus collage or strip')
+    expect(guidance).toContain('Never use only single for a long, multi-section answer')
+    expect(guidance).not.toContain('Use single or fewer blocks')
+    expect(guidance).not.toContain('Use single for one visual subject or limited budget')
+  },
+)
+
+it.each(['system prompt', 'tool description'] as const)(
+  'requires people tables with public executives and missing-photo rows in the %s',
+  async (source) => {
+    const f = await fixture()
+    const guidance =
+      source === 'system prompt'
+        ? (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
+        : f.ctx.tools.get('reply_images_prepare')!.description
+    expect(guidance).toContain(
+      'any section about key people (关键人物), parties involved (当事人), the founding team (创始团队), or comparisons (对比), you must use layout: "table" with items',
+    )
+    expect(guidance).toContain('CEOs, CFOs, VPs, and directors of listed companies')
+    expect(guidance).toContain('government officials')
+    expect(guidance).toContain('corporate executives publicly covered by mainstream media')
+    expect(guidance).toContain('are public figures and may be included directly')
+    expect(guidance).toContain(
+      'automatically outputs a — placeholder row for a person without an image',
+    )
+    expect(guidance).toContain('Never abandon table because a person has no photo')
+  },
+)
+
+it.each(['system prompt', 'tool description'] as const)(
+  'provides an executable one-line mixed-layout parameter example in the %s',
+  async (source) => {
+    const f = await fixture()
+    const tool = f.ctx.tools.get('reply_images_prepare')!
+    const guidance =
+      source === 'system prompt'
+        ? (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
+        : tool.description
+    const example = guidance.split('\n').find((line) => line.startsWith('Example: '))
+    expect(example).toBeDefined()
+    const args: { topics: ImageTopic[] } = JSON.parse(example!.slice('Example: '.length))
+    expect(validateJsonSchemaValue(tool.parameters, args)).toEqual([])
+    expect(args.topics.map(({ layout }) => layout)).toEqual(['table', 'collage', 'strip'])
+    expect(args.topics[0]).toMatchObject({
+      items: [
+        {
+          query: expect.any(String),
+          alt: expect.any(String),
+          caption: expect.any(String),
+        },
+      ],
+    })
+    for (const key of ['query', 'alt', 'count']) expect(args.topics[0]).not.toHaveProperty(key)
+    const result = await f.prepare(args.topics)
+    expect(result.topics.map(({ layout, images }) => [layout, images.length])).toEqual([
+      ['table', 1],
+      ['collage', 3],
+      ['strip', 3],
+    ])
+    expect(result.warnings).toEqual([])
+  },
+)
 
 it.each([
   { maxImagesPerTurn: 2, maxSearchesPerTurn: 1 },

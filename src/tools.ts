@@ -22,14 +22,16 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
   ctx.tools.register(
     defineTool({
       name: 'reply_images_prepare',
-      description:
-        'Use once when images add positive visual value. For detailed company, person, or event introductions, plan 2–4 complementary blocks placed in different sections (do not lump everything into one top block): use table with items and captions for founders, key people, entities, or comparisons (still keep the table for public figures even if one private person is skipped); use collage for a core product or one main event scene plus two related views; use strip for product interfaces, scenes, or 3–4 moments or angles of one subject; and optionally use single for an independent section highlight. Use concrete photographic queries (avoid "logo"/"icon" unless requested). Use single for one visual subject or limited budget. Skip short answers, code, math, abstract topics, and text-only requests. License unconfirmed is normal for search-engine reference images. Never discard a relevant reference image from official sites, encyclopedias, or mainstream media solely because its license is unconfirmed. Retain the actual license metadata; do not claim reuse permission, and honor requests for a documented reusable license. Paste each successful topic.markdown verbatim in its matching section and retain every image link, alt/title marker, and source, author, and license caption. Use tableMarkdown inside existing table cells. Search and image budgets are separate.',
+      description: [
+        'Use once when images add positive visual value. For a long, multi-section answer with visual value, you must plan 2–3 complementary blocks in one reply_images_prepare call, placed in different sections (do not lump everything into one top block). Never use only single for a long, multi-section answer. Prefer table plus collage or strip. If the answer has any section about key people (关键人物), parties involved (当事人), the founding team (创始团队), or comparisons (对比), you must use layout: "table" with items, one item per person/entity with query, alt, and a short caption. CEOs, CFOs, VPs, and directors of listed companies, government officials, and corporate executives publicly covered by mainstream media are public figures and may be included directly. The tool automatically outputs a — placeholder row for a person without an image. Never abandon table because a person has no photo. Use collage for a core product or one main event scene plus two related views; use strip for product interfaces, scenes, or 3–4 moments or angles of one subject. Reserve single for a standalone visual subject or an additional section highlight. Use concrete photographic queries (avoid "logo"/"icon" unless requested). Skip short answers, code, math, abstract topics, and text-only requests. License unconfirmed is normal for search-engine reference images. Never discard a relevant reference image from official sites, encyclopedias, or mainstream media solely because its license is unconfirmed. Retain the actual license metadata; do not claim reuse permission, and honor requests for a documented reusable license. Paste each successful topic.markdown verbatim in its matching section and retain every image link, alt/title marker, and source, author, and license caption. Use tableMarkdown inside existing table cells. Search and image budgets are separate; reduce per-block image counts to fit both remaining budgets.',
+        'Example: {"topics":[{"topic":"People","layout":"table","items":[{"query":"Jensen Huang portrait","alt":"Jensen Huang","caption":"CEO"}]},{"topic":"Products","layout":"collage","query":"Nvidia GPU","alt":"Nvidia GPU"},{"topic":"Scenes","layout":"strip","query":"Nvidia keynote","alt":"Nvidia keynote"}]}',
+      ].join('\n'),
       parameters: {
         topics: {
           type: 'array',
           required: true,
           description:
-            '1–6 ordered, distinct image sections. Use query and alt with optional count, or use items for one image per subquery.',
+            '1–6 ordered, distinct image sections. For long multi-section answers, plan 2–3 complementary blocks with explicit layouts. Use query and alt with optional count, or use items for one image per subquery.',
           items: {
             type: 'object',
             additionalProperties: false,
@@ -43,7 +45,7 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                 type: 'string',
                 enum: imageLayouts,
                 description:
-                  'Defaults to single. Use table for a directory or comparison, collage for three complementary views, or strip for a gallery.',
+                  'Defaults to single. You must explicitly use table with items for key people, parties involved, the founding team, or comparisons. Prefer table plus collage or strip for long multi-section answers.',
               },
               query: {
                 type: 'string',
@@ -63,7 +65,7 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
               items: {
                 type: 'array',
                 description:
-                  '1–5 subqueries, each requesting one image. Omit query, alt, and count when using items.',
+                  '1–5 subqueries, each requesting one image. Required for people tables and comparisons. Missing photos keep their rows with — placeholders. Omit topic-level query, alt, and count when using items.',
                 items: {
                   type: 'object',
                   additionalProperties: false,
