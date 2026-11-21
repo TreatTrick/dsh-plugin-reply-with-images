@@ -316,7 +316,9 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
   expect(prompt).toContain('Never discard')
   expect(prompt).toContain('official sites, encyclopedias, or mainstream media')
   expect(prompt).toContain('solely because its license is unconfirmed')
-  expect(prompt).toContain('still illustrate relevant public figures')
+  expect(prompt).toContain(
+    'still keep the table for the remaining public figures and organizations',
+  )
 })
 
 it.each([
