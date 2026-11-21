@@ -9,8 +9,9 @@
 自动搜索、优选排序、智能排版并持久化保存真实参考图片：人物目录卡片、三图拼贴、多角度横向图集与正文单图，全部原生融入你的 DSH 对话。
 
 [![CI](https://github.com/TreatTrick/dsh-plugin-reply-with-images/actions/workflows/ci.yml/badge.svg)](https://github.com/TreatTrick/dsh-plugin-reply-with-images/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.1.4-4f46e5.svg)](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases)
-[![DSH Plugin](https://img.shields.io/badge/DSH-0.2.x_%E6%8F%92%E4%BB%B6-2563eb.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![npm version](https://img.shields.io/npm/v/dsh-plugin-reply-with-images?color=4f46e5)](https://www.npmjs.com/package/dsh-plugin-reply-with-images)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-plugin-reply-with-images?color=2563eb)](https://www.npmjs.com/package/dsh-plugin-reply-with-images)
+[![DSH Plugin](https://img.shields.io/badge/DSH-0.2.x_%E6%8F%92%E4%BB%B6-0ea5e9.svg)](https://github.com/deepseek-ai/deepseek-harness)
 [![Node](https://img.shields.io/badge/node-%3E%3D24.9-339933.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-eab308.svg)](LICENSE)
 
@@ -71,39 +72,45 @@
 
 **环境要求：** Node `>= 24.9`，以及包含官方 `agents`、`tools`、`systemPrompt`、`attachments`、`connection`、`webServer` 服务的 DSH Web 或 Desktop profile（适配 `>=0.2.2-rc.3 <0.3.0`）。_（纯无头模式不支持页面图片展示。）_
 
-### 方式一：一行命令直接安装（推荐，免编译免手动下载）
+### 方式一：通过 npm / DSH 插件界面一键安装（推荐，最快上手）
 
-直接从 [`v0.1.4` GitHub Release](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/tag/v0.1.4) 一键安装：
+已正式发布至 npm：[`dsh-plugin-reply-with-images`](https://www.npmjs.com/package/dsh-plugin-reply-with-images)
 
-#### DSH Web
+#### DSH Web / 命令行
 
 ```sh
-dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add dsh-plugin-reply-with-images
 dsh --profile web
 ```
 
 #### DSH Desktop（桌面端）
 
-1. **完全退出** DeepSeek Harness Desktop（确认托盘/后台进程已退出）。
-2. 使用桌面端安装目录自带的 `dsh` 命令一键安装：
+- **侧边栏插件界面直接装（零命令行）：** 打开 DeepSeek Harness Desktop 侧边栏插件管理，输入包名 `dsh-plugin-reply-with-images` 安装并重启即可。
+- **使用自带命令行安装：** 先**完全退出** DeepSeek Harness Desktop，再运行：
 
-   **Windows（PowerShell）：**
+  **Windows（PowerShell）：**
 
-   ```powershell
-   & "<DSH安装目录>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
-   ```
+  ```powershell
+  & "<DSH安装目录>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add dsh-plugin-reply-with-images
+  ```
 
-   **macOS / Linux：**
+  **macOS / Linux：**
 
-   ```sh
-   dsh plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
-   ```
+  ```sh
+  dsh plugin --profile desktop add dsh-plugin-reply-with-images
+  ```
 
-3. **重新启动** DeepSeek Harness Desktop，新建对话即可体验。
+  然后重新启动 DeepSeek Harness Desktop，新建对话即可体验。
 
-> **离线 / 手动下载安装：** 也可以先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.4.tgz`，再把上面命令中的 URL 替换成本地文件路径 `./dsh-plugin-reply-with-images-0.1.4.tgz`。
+### 方式二：通过 GitHub Release 离线 / 直链安装
 
-### 方式二：从源码构建并安装
+```sh
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
+```
+
+也可先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.4.tgz`，再传入本地路径。
+
+### 方式三：从源码构建并安装
 
 ```sh
 git clone https://github.com/TreatTrick/dsh-plugin-reply-with-images.git

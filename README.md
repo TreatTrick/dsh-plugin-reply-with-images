@@ -9,8 +9,9 @@
 Automatically search, rank, lay out, and persist real reference images — portrait directory tables, 3-image collages, multi-angle strips, and inline cards — directly inside your DSH conversations.
 
 [![CI](https://github.com/TreatTrick/dsh-plugin-reply-with-images/actions/workflows/ci.yml/badge.svg)](https://github.com/TreatTrick/dsh-plugin-reply-with-images/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.1.4-4f46e5.svg)](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases)
-[![DSH Plugin](https://img.shields.io/badge/DSH-0.2.x_plugin-2563eb.svg)](https://github.com/deepseek-ai/deepseek-harness)
+[![npm version](https://img.shields.io/npm/v/dsh-plugin-reply-with-images?color=4f46e5)](https://www.npmjs.com/package/dsh-plugin-reply-with-images)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-plugin-reply-with-images?color=2563eb)](https://www.npmjs.com/package/dsh-plugin-reply-with-images)
+[![DSH Plugin](https://img.shields.io/badge/DSH-0.2.x_plugin-0ea5e9.svg)](https://github.com/deepseek-ai/deepseek-harness)
 [![Node](https://img.shields.io/badge/node-%3E%3D24.9-339933.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-eab308.svg)](LICENSE)
 
@@ -71,39 +72,45 @@ Real unedited DeepSeek Harness conversations powered by `dsh-plugin-reply-with-i
 
 **Requirements:** Node `>= 24.9` and a Web or Desktop DeepSeek Harness profile (`>=0.2.2-rc.3 <0.3.0`) providing the official `agents`, `tools`, `systemPrompt`, `attachments`, `connection`, and `webServer` services. _(Headless-only profiles cannot supply the display environment.)_
 
-### Option 1: One-Line Install from GitHub Release (Fastest)
+### Option 1: Install from npm / DSH Plugin UI (Recommended — Fastest)
 
-No build step or manual download required — install directly from the [`v0.1.4` release package](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/tag/v0.1.4):
+Published on npm as [`dsh-plugin-reply-with-images`](https://www.npmjs.com/package/dsh-plugin-reply-with-images):
 
-#### DSH Web
+#### DSH Web / CLI
 
 ```sh
-dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add dsh-plugin-reply-with-images
 dsh --profile web
 ```
 
 #### DSH Desktop
 
-1. **Fully quit** DeepSeek Harness Desktop.
-2. Run the bundled `dsh` CLI from your Desktop installation directory:
+- **Via Plugin UI (no terminal):** Open DeepSeek Harness Desktop's sidebar plugin panel, enter `dsh-plugin-reply-with-images`, install, and restart Desktop.
+- **Via bundled CLI:** Fully quit DeepSeek Harness Desktop, run:
 
-   **Windows (PowerShell):**
+  **Windows (PowerShell):**
 
-   ```powershell
-   & "<DSH_INSTALL_DIR>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
-   ```
+  ```powershell
+  & "<DSH_INSTALL_DIR>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add dsh-plugin-reply-with-images
+  ```
 
-   **macOS / Linux:**
+  **macOS / Linux:**
 
-   ```sh
-   dsh plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
-   ```
+  ```sh
+  dsh plugin --profile desktop add dsh-plugin-reply-with-images
+  ```
 
-3. **Reopen** DeepSeek Harness Desktop and start a new conversation.
+  Then reopen DeepSeek Harness Desktop and start a new conversation.
 
-> **Offline / manual download:** You can also download `dsh-plugin-reply-with-images-0.1.4.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass `./dsh-plugin-reply-with-images-0.1.4.tgz` instead of the URL.
+### Option 2: Install from GitHub Release (Offline / Direct Tarball)
 
-### Option 2: Build & Install from Source
+```sh
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
+```
+
+Or download `dsh-plugin-reply-with-images-0.1.4.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass the local path.
+
+### Option 3: Build & Install from Source
 
 ```sh
 git clone https://github.com/TreatTrick/dsh-plugin-reply-with-images.git
