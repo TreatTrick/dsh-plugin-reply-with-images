@@ -14,7 +14,7 @@ const scopeFor = (ctx: Context, execution: ToolRunContext): ReplyScope => {
   const boundary = ctx.agents.turnBoundaryOf(owner.session)
   if (boundary.openTurnStartSeq === null)
     throw new ToolContextUnavailableError('Image tools require an active turn.')
-  return { owner, turn: boundary.lastTurn }
+  return { owner, turn: boundary.lastTurn, sessionId: owner.session.id, callId: execution.callId }
 }
 
 /** Adapt the core image workflow to native Harness tools with replayable session results. */
@@ -23,13 +23,13 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
     defineTool({
       name: 'reply_images_prepare',
       description:
-        'Use once when images add positive visual value. Skip short answers, code, abstract topics, and text-only requests. Prepare 1–5 distinct image sections using table for people, entities, and visual comparisons; collage for one main scene and two related views; strip for different moments or angles of one subject; or single beside one paragraph. Insert every successful topics[].markdown in its matching section and retain every source, author, and license caption. Use tableMarkdown inside existing table cells. Search and image budgets are separate.',
+        'Use once when images add positive visual value. For detailed company, person, or event introductions, plan 2–4 complementary blocks placed in different sections (do not lump everything into one top block): use table with items and captions for founders, key people, entities, or comparisons (still keep the table for public figures even if one private person is skipped); use collage for a core product or one main event scene plus two related views; use strip for product interfaces, scenes, or 3–4 moments or angles of one subject; and optionally use single for an independent section highlight. Use concrete photographic queries (avoid "logo"/"icon" unless requested). Skip unverified photos of private individuals and still illustrate relevant public people, places, and scenes. Use single for one visual subject or limited budget. Skip short answers, code, math, abstract topics, and text-only requests. License unconfirmed is normal for search-engine reference images. Never discard a relevant reference image from official sites, encyclopedias, or mainstream media solely because its license is unconfirmed. Retain the actual license metadata; do not claim reuse permission, and honor requests for a documented reusable license. Paste each successful topic.markdown verbatim in its matching section and retain every image link, alt/title marker, and source, author, and license caption. Use tableMarkdown inside existing table cells. Search and image budgets are separate.',
       parameters: {
         topics: {
           type: 'array',
           required: true,
           description:
-            '1–5 ordered, distinct image sections. Use query and alt with optional count, or use items for one image per subquery.',
+            '1–6 ordered, distinct image sections. Use query and alt with optional count, or use items for one image per subquery.',
           items: {
             type: 'object',
             additionalProperties: false,

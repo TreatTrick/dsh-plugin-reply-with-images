@@ -39,6 +39,21 @@ const html = `<!doctype html>
     <div data-chat-group-part="response">
     <h1>花卉与水域植物：看叶片和生长位置</h1>
     <p>快速区分两类常见水生植物，可以先观察叶片是否漂浮，以及花朵和叶柄相对水面的高度。以下图片是用于版式预览的通用示例，不代表对某个物种的鉴定。</p>
+    <h2>Anthropic 风格人物目录卡片</h2>
+    <p>以下为人物目录排版示意。素材肖像不代表 Anthropic 的员工、创始人或任何已核实身份，简介仅说明版式。</p>
+    <table>
+      <thead><tr><th scope="col">Image</th><th scope="col">Description</th><th scope="col">Source and license</th></tr></thead>
+      <tbody>
+        <tr><td><img class="dsh_image" alt="目录排版示例肖像一，身份未核实" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&amp;fit=crop&amp;w=336&amp;q=80"></td><td><strong>示例人物一</strong><p>左侧竖版肖像，右侧保留完整人物介绍；通用列头仅在视觉上收起，读屏器仍可读取。</p></td><td>素材示意<br><a href="https://unsplash.com/license">Unsplash License</a></td></tr>
+        <tr><td><img class="dsh_image" alt="目录排版示例肖像二，身份未核实" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&amp;fit=crop&amp;w=336&amp;q=80"></td><td><strong>示例人物二</strong><p>细线区分卡片，末列来源降低视觉权重，让肖像和正文成为阅读重点。</p></td><td>素材示意<br><a href="https://unsplash.com/license">Unsplash License</a></td></tr>
+        <tr><td>—</td><td><strong>无图占位示例</strong><p>图片不可用时仍保留实体说明与原始占位行。</p></td><td>—</td></tr>
+      </tbody>
+    </table>
+    <h2>两列目录：简介保留正常对比度</h2>
+    <table>
+      <thead><tr><th scope="col">人物</th><th scope="col">说明</th></tr></thead>
+      <tbody><tr><td><img class="dsh_image" alt="两列目录素材肖像，身份未核实" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&amp;fit=crop&amp;w=336&amp;q=80"></td><td><strong>示例人物</strong><p>两列表格的末列是简介，维持正文字号与对比度。</p></td></tr></tbody>
+    </table>
     <h2>主题索引</h2>
     <table>
       <thead><tr><th>主题</th><th>观察要点与来源</th></tr></thead>
@@ -49,9 +64,14 @@ const html = `<!doctype html>
     </table>
     <h2>一大两小拼贴</h2>
     <p><img class="dsh_image" alt="池塘主场景" src="https://images.unsplash.com/photo-1439405326854-014607f694d7?auto=format&amp;fit=crop&amp;w=960&amp;q=80#dsh-layout=collage&amp;group=pond"><img class="dsh_image" alt="湿地植物细节" src="https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&amp;fit=crop&amp;w=640&amp;q=80#dsh-layout=collage&amp;group=pond"><img class="dsh_image" alt="水面生态" src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&amp;fit=crop&amp;w=640&amp;q=80#dsh-layout=collage&amp;group=pond"></p>
-    <h2>四图横向图集</h2>
+    <p><em>Image sources: 1–3. <a href="https://unsplash.com/license">Unsplash License</a></em></p>
+    <h2>四图横向图集（Desktop title 标记）</h2>
     <p>点击图片或数字角标打开图集。用方向键或分页圆点切换图片，按 Esc 返回正文。</p>
-    <p><img class="dsh_image" alt="花叶近景" src="https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&amp;fit=crop&amp;w=640&amp;q=80#dsh-layout=strip&amp;group=flowers"><img class="dsh_image" alt="池塘绿叶" src="https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&amp;fit=crop&amp;w=640&amp;q=80#dsh-layout=strip&amp;group=flowers"><img class="dsh_image" alt="野花场景" src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&amp;fit=crop&amp;w=640&amp;q=80#dsh-layout=strip&amp;group=flowers"><img class="dsh_image" alt="花园步道" src="https://images.unsplash.com/photo-1500530850850-4b2e986ea89c?auto=format&amp;fit=crop&amp;w=640&amp;q=80#dsh-layout=strip&amp;group=flowers"></p>
+    <p><img class="dsh_image" alt="花叶近景" src="https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&amp;fit=crop&amp;w=640&amp;q=80" title="dsh-layout=strip&amp;group=flowers"><img class="dsh_image" alt="池塘绿叶" src="https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&amp;fit=crop&amp;w=640&amp;q=80" title="dsh-layout=strip&amp;group=flowers"><img class="dsh_image" alt="野花场景" src="https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&amp;fit=crop&amp;w=640&amp;q=80" title="dsh-layout=strip&amp;group=flowers"><img class="dsh_image" alt="湖畔景观" src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&amp;fit=crop&amp;w=640&amp;q=80" title="dsh-layout=strip&amp;group=flowers"></p>
+    <p><em>图片来源：<a href="https://unsplash.com/license">Unsplash License</a></em></p>
+    <h2>正文单图</h2>
+    <p><img class="dsh_image" alt="水边花朵" src="https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&amp;fit=crop&amp;w=1000&amp;q=80"></p>
+    <p><em>Image source: <a href="https://unsplash.com/license">Unsplash License</a></em></p>
     <h2>并列场景</h2>
     <table>
       <thead><tr><th>叶片与花朵</th><th>水面与植被</th></tr></thead>

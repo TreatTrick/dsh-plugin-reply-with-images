@@ -30,7 +30,7 @@ it('falls back from Wikimedia and Baidu failures to mainland results without dup
     }
   }
   const result = await searchImages('Lotus', {
-    config: resolveConfig({ maxCandidates: 1 }),
+    config: resolveConfig({ providers: ['wikimedia', 'baidu', 'so360', 'bing'], maxCandidates: 1 }),
     read,
     signal: new AbortController().signal,
   })
@@ -49,6 +49,9 @@ it('continues searching below the deduplicated candidate limit and applies provi
     visited.push(url)
     expect(options.allowUrl(url)).toBe(true)
     expect(options.allowUrl('https://evil.example/a')).toBe(false)
+    if (url.includes('www.bing.com'))
+      expect(options.allowUrl('https://cn.bing.com/images/search?q=Lotus')).toBe(true)
+    else expect(options.allowUrl('https://cn.bing.com/images/search?q=Lotus')).toBe(false)
     if (url.includes('image.so.com'))
       return {
         contentType: 'application/json',
@@ -100,4 +103,44 @@ it('preserves cancellation when a dependency throws AbortError instead of treati
     searchImages('Lotus', { config: resolveConfig(), read, signal: new AbortController().signal }),
   ).rejects.toBe(error)
   expect(read).toHaveBeenCalledOnce()
+})
+
+it('ranks every candidate from the queried provider before truncating and logs top scores', async () => {
+  const trace = vi.fn()
+  const read: HttpRead = async () => ({
+    contentType: 'application/json',
+    data: Buffer.from(
+      JSON.stringify({
+        list: ['Lotus icon', 'Lotus garden'].map((title, i) => ({
+          title,
+          thumb: `https://p2.ssl.qhimgs1.com/${i}.jpg`,
+          link: 'https://example.com/story',
+        })),
+      }),
+    ),
+  })
+  const result = await searchImages('Lotus garden', {
+    config: resolveConfig({ providers: ['so360'], maxCandidates: 1 }),
+    signal: new AbortController().signal,
+    read,
+    trace,
+  })
+  expect(result.images[0]?.title).toBe('Lotus garden')
+  expect(trace).toHaveBeenCalledWith(
+    'search.provider',
+    expect.objectContaining({ provider: 'so360', count: 2, elapsedMs: expect.any(Number) }),
+  )
+  expect(trace).toHaveBeenCalledWith(
+    'search.ranked',
+    expect.objectContaining({
+      top: [
+        expect.objectContaining({
+          title: 'Lotus garden',
+          score: expect.any(Number),
+          scores: expect.objectContaining({ source: 0 }),
+        }),
+        expect.any(Object),
+      ],
+    }),
+  )
 })

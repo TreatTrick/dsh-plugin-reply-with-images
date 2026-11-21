@@ -270,3 +270,31 @@ describe('search response parsing', () => {
     expect(parseSearchResponse('bing', '<html>CAPTCHA</html>')).toEqual([])
   })
 })
+
+it.each(['<html>blocked</html>', '{}', '{"antiFlag":1,"data":[]}', '{"errno":4,"data":[]}'])(
+  'reports a single-line Baidu response error for %s',
+  (body) => {
+    expect(() => parseSearchResponse('baidu', body)).toThrow(/^Baidu: [^\n]+$/)
+  },
+)
+
+it('uses only allowlisted Baidu fallback thumbnails, including hoverURL and replaceUrl', () => {
+  const fromURL = 'https://example.com/story'
+  const hoverURL = 'https://img1.baidu.com/hover.png'
+  const replacement = 'https://img2.baidu.com/replacement.png'
+  const data = [
+    { fromURL, middleURL: 'https://example.com/pixel', hoverURL },
+    { fromURL, replaceUrl: [{ ObjURL: 'https://example.com/original', ObjUrl: replacement }] },
+    { fromURL, hoverURL: 'https://example.com/pixel' },
+    {},
+  ]
+  expect(parseSearchResponse('baidu', JSON.stringify({ data })).map((row) => row.imageUrl)).toEqual(
+    [hoverURL, replacement],
+  )
+  expect(
+    parseSearchResponse(
+      'baidu',
+      JSON.stringify({ status: 200, code: '200', antiFlag: 0, errno: 0, data }),
+    ).map((row) => row.imageUrl),
+  ).toEqual([hoverURL, replacement])
+})

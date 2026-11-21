@@ -6,12 +6,43 @@ import type { Provider, SearchImage } from './types.js'
 const baiduItem = z.object({
   middleURL: z.string().optional(),
   thumbURL: z.string().optional(),
+  hoverURL: z.string().optional(),
+  replaceUrl: z.array(z.unknown()).optional(),
   fromPageTitleEnc: z.string().optional(),
   fromPageTitle: z.string().optional(),
   fromURL: z.string().optional(),
   fromURLHost: z.string().optional(),
   fromJumpUrl: z.string().optional(),
 })
+
+const baiduResponse = z.object({
+  data: z.array(z.unknown()).optional(),
+  antiFlag: z.unknown().optional(),
+  errno: z.unknown().optional(),
+  status: z.unknown().optional(),
+  code: z.unknown().optional(),
+})
+const baiduReplacement = z.object({ ObjURL: z.string().optional(), ObjUrl: z.string().optional() })
+const baiduRows = (text: string) => {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new Error('Baidu: Expected a JSON search response')
+  }
+  const response = baiduResponse.safeParse(raw)
+  if (!response.success) throw new Error('Baidu: Invalid search response')
+  const { data, antiFlag, errno, status, code } = response.data
+  const nonZero = (value: unknown) =>
+    value === true ||
+    (typeof value === 'number' && value !== 0) ||
+    (typeof value === 'string' && /^[1-9]\d*$/.test(value))
+  const errorStatus = (value: unknown) => nonZero(value) && value !== 200 && value !== '200'
+  if (nonZero(antiFlag) || nonZero(errno) || errorStatus(status) || errorStatus(code))
+    throw new Error('Baidu: Search blocked or temporarily unavailable')
+  if (!data) throw new Error('Baidu: Search response has no data array')
+  return data
+}
 
 const BAIDU_CHARACTERS: Record<string, string> = Object.fromEntries(
   [...'wkv1ju2it3hs4g5rq6fp7eo8dn9cm0bla'].map((letter, index) => [
@@ -133,12 +164,17 @@ export const parseSearchResponse = (provider: Provider, text: string): SearchIma
       })
     })
   }
-  const response = z.object({ data: z.array(z.unknown()) }).parse(JSON.parse(text))
-  return response.data.flatMap((item) => {
+  return baiduRows(text).flatMap((item) => {
     const parsed = baiduItem.safeParse(item)
     if (!parsed.success) return []
     const row = parsed.data
-    const image = imageUrl(row.middleURL ?? row.thumbURL ?? '', provider)
+    const replacements = (row.replaceUrl ?? []).flatMap((item) => {
+      const parsed = baiduReplacement.safeParse(item)
+      return parsed.success ? [parsed.data.ObjURL, parsed.data.ObjUrl] : []
+    })
+    const image = [row.middleURL, row.thumbURL, row.hoverURL, ...replacements]
+      .map((value) => imageUrl(value ?? '', provider))
+      .find(Boolean)
     const source = sourceUrl(baiduSource(row.fromURL ?? row.fromJumpUrl ?? ''))
     if (!image || !source) return []
     return [

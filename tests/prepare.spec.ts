@@ -13,6 +13,7 @@ const fixture = (
   config: Config = {},
   reader?: HttpRead,
   imageDestination?: ReplyImagesDependencies['imageDestination'],
+  trace?: NonNullable<ReplyImagesDependencies['trace']>,
 ) => {
   const saveImage = vi.fn(async ({ data }: { data: Uint8Array }) => ({
     attachmentId: AttachmentId(`sha256:${createHash('sha256').update(data).digest('hex')}`),
@@ -46,6 +47,7 @@ const fixture = (
     attachments: { saveImage },
     baseUrl: () => 'https://harness.example',
     ...(imageDestination ? { imageDestination } : {}),
+    ...(trace ? { trace } : {}),
   })
   return { service, read, saveImage }
 }
@@ -106,7 +108,7 @@ it('shares remaining budgets with the advanced tools and concurrent preparation'
 
 it.each([
   { topics: [] },
-  { topics: Array.from({ length: 6 }, () => topic()) },
+  { topics: Array.from({ length: 7 }, () => topic()) },
   { topics: [topic(), { ...topic(), query: ' ' }] },
   { topics: [{ ...topic(), topic: 'x'.repeat(121) }] },
   { topics: [{ ...topic(), alt: '' }] },
@@ -232,6 +234,55 @@ const galleryReader: HttpRead = async (url) => {
   return { contentType: 'image/png', data: Buffer.from(pathname.replace('/copy.png', '/a.png')) }
 }
 
+it('prepares six ordered sections within the default eight-search and twelve-image budgets', async () => {
+  const f = fixture({}, galleryReader)
+  const current = scope()
+  const result = await f.service.prepare(
+    current,
+    [
+      { topic: 'People', layout: 'table', items: [topic('person1'), topic('person2')] },
+      {
+        topic: 'Products',
+        layout: 'collage',
+        query: 'product1,product2,product3',
+        alt: 'Products',
+      },
+      {
+        topic: 'Scenes',
+        layout: 'strip',
+        query: 'scene1,scene2,scene3,scene4',
+        alt: 'Scenes',
+        count: 4,
+      },
+      topic('Office'),
+      topic('Research'),
+      topic('History'),
+    ],
+    signal(),
+  )
+  expect(result.topics.map(({ layout }) => layout)).toEqual([
+    'table',
+    'collage',
+    'strip',
+    'single',
+    'single',
+    'single',
+  ])
+  expect(result.topics.flatMap(({ images }) => images)).toHaveLength(12)
+  expect(f.saveImage).toHaveBeenCalledTimes(12)
+  expect(f.read.mock.calls.filter(([url]) => url.includes('image.so.com'))).toHaveLength(7)
+  const calls = f.read.mock.calls.length
+  await expect(f.service.prepare(current, [topic('Extra')], signal())).rejects.toMatchObject({
+    code: 'REPLY_IMAGES_BUDGET_EXCEEDED',
+  })
+  expect(f.read).toHaveBeenCalledTimes(calls)
+  await f.service.search(current, 'Final search', signal())
+  await expect(f.service.search(current, 'Over budget', signal())).rejects.toMatchObject({
+    code: 'REPLY_IMAGES_BUDGET_EXCEEDED',
+  })
+  expect(f.read).toHaveBeenCalledTimes(calls + 1)
+})
+
 it('prepares table, collage, strip, and legacy sections with ordered sources and group fragments', async () => {
   const f = fixture({ maxImagesPerTurn: 10, maxSearchesPerTurn: 7 }, galleryReader)
   const { topics } = await f.service.prepare(
@@ -259,6 +310,7 @@ it('prepares table, collage, strip, and legacy sections with ordered sources and
   ])
   expect(topics[0]!.markdown).toMatch(/^\| Image \| Description \| Source and license \|/)
   expect(topics[0]!.markdown).toContain('Role \\| description')
+  expect(topics[0]!.markdown).toContain('| — | Unavailable portrait | — |')
   expect(topics[0]!.warnings.join()).toContain('Bad image')
   expect(topics[0]!.images[0]!.tableMarkdown).toMatch(/Portrait.*License unconfirmed/)
   for (const group of topics.slice(1, 3)) {
@@ -334,4 +386,61 @@ it('keeps Desktop paths unchanged and attributes every image in a group', async 
   expect(result!.markdown.match(/<C:\/Images\//g)).toHaveLength(3)
   expect(result!.markdown).not.toContain('#dsh-layout')
   expect(result!.markdown.match(/License unconfirmed/g)).toHaveLength(3)
+})
+
+it('filters dimensions before persisting and logs the Desktop gallery outcome', async () => {
+  const trace = vi.fn()
+  const reader: HttpRead = async (url, abort, options) => {
+    const result = await galleryReader(url, abort, options)
+    if (result.contentType !== 'image/png') return result
+    const data = Buffer.alloc(24)
+    Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').copy(data)
+    const key = new URL(url).pathname[1]
+    data.writeUInt32BE(key === 's' ? 119 : key === 'w' ? 1000 : 320, 16)
+    data.writeUInt32BE(key === 'w' ? 100 : 200, 20)
+    return { ...result, data: Buffer.concat([data, result.data]) }
+  }
+  const f = fixture({}, reader, (ref) => `C:/Images/${ref.attachmentId.slice(7)}.png`, trace)
+  const result = await f.service.prepare(
+    { ...scope(), sessionId: 'session-example', callId: 'call-example' },
+    [{ topic: 'Views', layout: 'collage', query: 's,w,a,b', count: 3, alt: 'View' }],
+    signal(),
+  )
+  expect(f.saveImage).toHaveBeenCalledTimes(2)
+  expect(result.topics[0]?.markdown).toMatch(
+    /!\[View\u200B\u200D\]\(<C:\/Images\/[^>]+> "dsh-layout=strip&group=[a-f0-9-]+"/,
+  )
+  expect(trace.mock.calls.map(([event]) => event)).toEqual([
+    'prepare.start',
+    'search.provider',
+    'search.ranked',
+    'candidate.skipped',
+    'candidate.skipped',
+    'candidate.saved',
+    'candidate.saved',
+    'prepare.done',
+  ])
+  expect(trace).toHaveBeenCalledWith(
+    'candidate.skipped',
+    expect.objectContaining({ reason: 'too-small', width: 119, height: 200 }),
+  )
+  expect(trace).toHaveBeenCalledWith(
+    'candidate.skipped',
+    expect.objectContaining({ reason: 'extreme-aspect' }),
+  )
+  expect(trace).toHaveBeenLastCalledWith(
+    'prepare.done',
+    expect.objectContaining({
+      sessionTurn: { sessionId: 'session-example', turn: 1 },
+      callId: 'call-example',
+      topics: [
+        expect.objectContaining({
+          requestedLayout: 'collage',
+          layout: 'strip',
+          markerChannel: 'alt+title',
+          downgradeReason: 'insufficient-images',
+        }),
+      ],
+    }),
+  )
 })

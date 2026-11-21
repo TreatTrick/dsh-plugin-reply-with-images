@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto'
+import { mkdtemp, readFile, rmdir, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -48,7 +51,7 @@ const fixture = async (
   const ctx = new Context()
   roots.push(ctx)
   const routes = new Map<string, ConnectionFetchRoute>()
-  const owner = { id: 'session-a', session: {} } as Agent
+  const owner = { id: 'session-a', session: { id: 'session-a' } } as Agent
   let turn = 1
   let turnOpen = true
   ctx.provide('attachments', {
@@ -83,7 +86,7 @@ const fixture = async (
     },
   })
   vi.mocked(readHttp).mockImplementation(netRead)
-  const mounted = await ctx.plugin(plugin, { providers: ['so360'], ...config })
+  const mounted = await ctx.plugin(plugin, { providers: ['so360'], debugLog: false, ...config })
   const execute = async (name: string, args: unknown, agent: Agent | null = owner) => {
     const definition = ctx.tools.get(name)!
     const execution: ToolRunContext = {
@@ -161,7 +164,15 @@ it('prepares three ordered visual topics with per-section placement guidance and
   const prepareTool = f.ctx.tools.get('reply_images_prepare')!
   const outputSchema = prepareTool.output.schema as any
   expect(prepareTool.description).toContain('positive visual value')
-  expect(prepareTool.description).toContain('retain every source, author, and license')
+  expect(prepareTool.description).toContain('Paste each successful topic.markdown verbatim')
+  expect(prepareTool.description).toContain('title marker, and source, author, and license caption')
+  expect(prepareTool.description).toContain('2–4 complementary blocks')
+  expect(prepareTool.description).toContain('License unconfirmed')
+  expect(prepareTool.description).toContain('Never discard')
+  expect(prepareTool.description).toContain('official sites, encyclopedias, or mainstream media')
+  expect(prepareTool.parameters).toMatchObject({
+    properties: { topics: { description: expect.stringContaining('1–6 ordered') } },
+  })
   expect(outputSchema.properties.topics.description).toContain(
     'Every item with images must be consumed',
   )
@@ -198,6 +209,7 @@ it('uses official Desktop attachment paths with native image authentication inde
   ])
   expect(grouped.topics[0]!.images).toHaveLength(3)
   expect(grouped.markdown).not.toContain('#dsh-layout')
+  expect(grouped.markdown).toContain('"dsh-layout=strip&group=')
 })
 
 it('reports a missing Desktop attachment path without generating an unauthenticated link', async () => {
@@ -294,11 +306,47 @@ it('allows in-chat previews with unknown licenses and preserves the republicatio
     'Skip short answers, code, abstract explanations, math, and text-only requests',
   )
   for (const layout of ['table', 'collage', 'strip', 'single']) expect(prompt).toContain(layout)
-  expect(prompt).toContain('6 image searches and display at most 8 images')
+  expect(prompt).toContain('8 image searches and display at most 12 images')
   expect(prompt).toContain('consume every topic that has images')
   expect(prompt).toContain('never paste only the aggregate Markdown at the top')
   expect(prompt).toContain('Retain all source, author, and license captions')
-  expect(prompt).toContain('do not present an unverified private image as evidence')
+  expect(prompt).toContain('Do not present an unverified private image as evidence')
+  expect(prompt).toContain('2–4 complementary blocks')
+  expect(prompt).toContain('License unconfirmed is normal for search-engine reference images')
+  expect(prompt).toContain('Never discard')
+  expect(prompt).toContain('official sites, encyclopedias, or mainstream media')
+  expect(prompt).toContain('solely because its license is unconfirmed')
+  expect(prompt).toContain('still illustrate relevant public figures')
+})
+
+it.each([
+  { maxImagesPerTurn: 2, maxSearchesPerTurn: 1 },
+  { maxImagesPerTurn: 20, maxSearchesPerTurn: 16 },
+])('uses configured limits in the system prompt: %j', async (config) => {
+  const f = await fixture(config)
+  const prompt = (await f.ctx.systemPrompt.assemble()).sections.map((row) => row.text).join('\n')
+  expect(prompt).toContain(
+    `${config.maxSearchesPerTurn} image searches and display at most ${config.maxImagesPerTurn} images`,
+  )
+})
+
+it('accepts six topics through the registered tool and rejects seven before doing any work', async () => {
+  const f = await fixture()
+  const topics = Array.from({ length: 6 }, (_, i) => ({
+    topic: `Section ${i}`,
+    query: `Subject ${i}`,
+    alt: `Subject ${i}`,
+  }))
+  await expect(
+    f.prepare([...topics, { topic: 'Extra', query: 'Extra', alt: 'Extra' }]),
+  ).rejects.toMatchObject({ code: 'INVALID_ARGS' })
+  expect(readHttp).not.toHaveBeenCalled()
+  const result = await f.prepare(topics)
+  expect(result.topics.map(({ topic }) => topic)).toEqual(topics.map(({ topic }) => topic))
+  expect(result.topics.every(({ images }) => images.length === 1)).toBe(true)
+  expect(
+    validateJsonSchemaValue(f.ctx.tools.get('reply_images_prepare')!.output.schema, result),
+  ).toEqual([])
 })
 
 it('runs a mixed-layout request through the registered tool and rejects invalid layout names', async () => {
@@ -363,4 +411,38 @@ it('removes tools, prompts, and media routes on unload', async () => {
       (row) => row.name === 'tool:reply-with-images',
     ),
   ).toBeUndefined()
+})
+
+it('persists a complete Desktop prepare trace with the session and tool call IDs', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'reply-images-plugin-'))
+  const path = join(dir, 'diagnostics.jsonl')
+  try {
+    const f = await fixture(
+      { debugLog: true, debugLogPath: path },
+      'desktop',
+      'C:/Images/photo.png',
+    )
+    await f.prepare([{ topic: 'Lotus', query: 'Lotus', alt: 'Lotus' }])
+    await f.mounted.dispose()
+    const records = (await readFile(path, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(records).toMatchObject([
+      { event: 'plugin.loaded', environment: 'desktop', providers: ['so360'] },
+      {
+        event: 'prepare.start',
+        sessionTurn: { sessionId: 'session-a', turn: 1 },
+        callId: 'call-1',
+        topics: [{ query: 'Lotus' }],
+      },
+      { event: 'search.provider', count: 3 },
+      { event: 'search.ranked' },
+      { event: 'candidate.saved', provider: 'so360', width: 2, height: 1 },
+      { event: 'prepare.done', topics: [{ layout: 'single', markerChannel: 'none' }] },
+    ])
+  } finally {
+    await unlink(path).catch(() => {})
+    await rmdir(dir)
+  }
 })

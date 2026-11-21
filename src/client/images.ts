@@ -2,7 +2,11 @@ import { IMAGE_STYLES } from './styles.js'
 
 const RESPONSE = '[data-chat-group-part="response"]'
 const INTERACTIVE = 'a, button, [role="button"], [role="link"], [contenteditable="true"]'
-const MARKDOWN_IMAGE = /_image$/u
+const MARKDOWN_IMAGE = /(?:^|_)image(?:_|$)/u
+const NATIVE_IMAGE_BUTTON = /(?:^|_)imageButton(?:_|$)/u
+const COLLAGE_ALT_MARK = '\u200B\u200C'
+const STRIP_ALT_MARK = '\u200B\u200D'
+const cleanAlt = (alt: string) => alt.replace(/[\u200B-\u200D]+$/u, '').trimEnd()
 
 type GalleryLayout = 'collage' | 'strip'
 interface GalleryTile {
@@ -17,19 +21,27 @@ interface MountedGallery extends Gallery {
   badge?: HTMLButtonElement
   restore: () => void
 }
+interface MountedZoom {
+  label: string
+  originalTitle: string | null
+  restore: () => void
+}
 
-const imageFragment = (
-  image: HTMLImageElement,
-): { layout: GalleryLayout; group: string } | undefined => {
-  for (const source of [image.getAttribute('src'), image.src]) {
-    const hash = source?.indexOf('#') ?? -1
-    if (!source || hash < 0) continue
-    const fragment = new URLSearchParams(source.slice(hash + 1))
-    const layout = fragment.get('dsh-layout')
-    const group = fragment.get('group')
-    if ((layout === 'collage' || layout === 'strip') && group) return { layout, group }
-  }
-  return undefined
+type LayoutMarker = { layout: GalleryLayout; group: string; channel: 'hash' | 'title' | 'alt' }
+type GalleryRejection =
+  'no-marker' | 'mixed-text' | 'class-mismatch' | 'single-image' | 'inconsistent-group'
+
+const parseMarker = (text: string, channel: 'hash' | 'title'): LayoutMarker | undefined => {
+  const params = new URLSearchParams(text.trim())
+  const layout = params.get('dsh-layout')
+  const group = params.get('group')
+  if ((layout === 'collage' || layout === 'strip') && group) return { layout, group, channel }
+}
+
+const parseAltMarker = (alt: string): LayoutMarker | undefined => {
+  if (alt.endsWith(COLLAGE_ALT_MARK))
+    return { layout: 'collage', group: 'alt-collage', channel: 'alt' }
+  if (alt.endsWith(STRIP_ALT_MARK)) return { layout: 'strip', group: 'alt-strip', channel: 'alt' }
 }
 
 const setAttributes = (element: Element, attributes: Record<string, string>) => {
@@ -49,40 +61,137 @@ const setAttributes = (element: Element, attributes: Record<string, string>) => 
 const inResponse = (element: Element) =>
   element.closest('[data-chat-group-part]')?.matches(RESPONSE) === true
 
-const markdownImage = (image: HTMLImageElement) =>
-  inResponse(image) &&
-  [...image.classList].some((name) => MARKDOWN_IMAGE.test(name)) &&
-  (image.hasAttribute('data-reply-image-zoom') || !image.matches(INTERACTIVE)) &&
-  image.parentElement?.closest(INTERACTIVE) === null
+const nativeImageButton = (image: HTMLImageElement): HTMLButtonElement | null => {
+  const button = image.closest('button')
+  return button &&
+    [...button.classList].some((name) => NATIVE_IMAGE_BUTTON.test(name)) &&
+    button.querySelectorAll('img').length === 1
+    ? button
+    : null
+}
+
+const markdownImage = (image: HTMLImageElement) => {
+  if (!inResponse(image) || ![...image.classList].some((name) => MARKDOWN_IMAGE.test(name)))
+    return false
+  const nativeButton = nativeImageButton(image)
+  const host = nativeButton ?? image
+  if (host.parentElement?.closest(INTERACTIVE) !== null) return false
+  return (
+    nativeButton !== null ||
+    image.hasAttribute('data-reply-image-zoom') ||
+    !image.matches(INTERACTIVE)
+  )
+}
 
 const isAvailable = (image: HTMLImageElement) => !image.complete || image.naturalWidth > 0
+
+const DIRECTORY_HEADERS = [
+  /^(?:images?|photos?|pictures?|portraits?|people|person|图片|图像|照片|肖像|人物)$/iu,
+  /^(?:description|details|name|person|people|描述|说明|简介|介绍|名称|姓名|人物)$/iu,
+  /^(?:source(?:s)?(?: and licen[cs]e)?|来源(?:与许可|和许可)?|来源及许可)$/iu,
+]
+
+/** 仅识别通用首列图片目录；复杂表头、合并单元格与嵌套表保留原始语义。 */
+const isImageDirectory = (table: HTMLTableElement) => {
+  if (
+    !inResponse(table) ||
+    table.parentElement?.closest('table') ||
+    table.querySelector('table, [data-chat-group-part]') ||
+    table.tFoot
+  )
+    return false
+  const head = table.tHead
+  const headers = head?.rows[0]?.cells
+  if (!head || head.rows.length !== 1 || !headers || headers.length < 2 || headers.length > 3)
+    return false
+  if (
+    ![...headers].every(
+      (cell, index) =>
+        cell.tagName === 'TH' &&
+        cell.colSpan === 1 &&
+        cell.rowSpan === 1 &&
+        !cell.querySelector('img') &&
+        DIRECTORY_HEADERS[index]?.test(
+          (cell.textContent ?? '').trim().replace(/\s+/gu, ' ').replace(/&/gu, 'and'),
+        ),
+    )
+  )
+    return false
+  const rows = [...table.tBodies].flatMap((body) => [...body.rows])
+  let imageCount = 0
+  const matches = rows.every((row) => {
+    const cells = [...row.cells]
+    if (
+      cells.length !== headers.length ||
+      cells.some((cell) => cell.tagName !== 'TD' || cell.colSpan !== 1 || cell.rowSpan !== 1) ||
+      cells.slice(1).some((cell) => cell.querySelector('img'))
+    )
+      return false
+    const first = cells[0]!
+    const images = first.querySelectorAll('img')
+    if (!images.length)
+      return /^(?:[—–-]|no image(?: available)?|暂无图片|无图)?$/iu.test(
+        first.textContent?.trim() ?? '',
+      )
+    if (images.length !== 1) return false
+    imageCount++
+    return true
+  })
+  return matches && imageCount > 0
+}
 
 /** 仅对独立的图片段落布局，保留包装器、正文与失败图片的宿主回退。 */
 const readGallery = (
   block: HTMLParagraphElement,
-  existingBadge?: HTMLButtonElement,
-): Gallery | undefined => {
+  imageMarker: (image: HTMLImageElement) => LayoutMarker | undefined,
+  existingBadge: HTMLButtonElement | undefined,
+): Gallery | GalleryRejection => {
   const tiles: GalleryTile[] = []
-  let token: ReturnType<typeof imageFragment>
+  let token: LayoutMarker | undefined
+  let sawUnmarked = false
   for (const node of block.childNodes) {
     if (node === existingBadge || node.nodeType === Node.COMMENT_NODE) continue
     if (node.nodeType === Node.TEXT_NODE && !node.textContent?.trim()) continue
-    if (!(node instanceof Element) || node.textContent?.trim()) return undefined
+    if (!(node instanceof Element) || node.textContent?.trim()) return 'mixed-text'
     const images = node instanceof HTMLImageElement ? [node] : node.querySelectorAll('img')
     const image = images[0]
-    if (images.length !== 1 || !image || !markdownImage(image)) return undefined
-    const fragment = imageFragment(image)
-    if (
-      !fragment ||
-      (token && (token.group !== fragment.group || token.layout !== fragment.layout))
-    )
-      return undefined
-    token = fragment
+    if (images.length !== 1 || !image || !markdownImage(image)) return 'class-mismatch'
+    const marker = imageMarker(image)
+    if (!marker) {
+      if (token) return 'inconsistent-group'
+      sawUnmarked = true
+    } else {
+      if (
+        sawUnmarked ||
+        (token && (token.group !== marker.group || token.layout !== marker.layout))
+      )
+        return 'inconsistent-group'
+      token = marker
+    }
     if (isAvailable(image)) tiles.push({ image, element: node })
   }
-  if (!token || tiles.length < 2) return undefined
+  if (!token) {
+    const caption = !block.closest('table') ? imageCaption(block) : undefined
+    if (!caption || tiles.length < 2) return 'no-marker'
+    const inferred: GalleryLayout =
+      tiles.length === 3 && /(?:collage|拼贴)/i.test(caption.textContent ?? '')
+        ? 'collage'
+        : 'strip'
+    return { layout: inferred, tiles }
+  }
+  if (tiles.length < 2) return 'single-image'
   const layout = token.layout === 'collage' && tiles.length <= 3 ? 'collage' : 'strip'
   return { layout, tiles }
+}
+
+const imageCaption = (block: HTMLParagraphElement) => {
+  const caption = block.nextElementSibling
+  if (!(caption instanceof HTMLParagraphElement)) return
+  const emphasis = caption.firstElementChild
+  if (emphasis?.tagName !== 'EM' || caption.childElementCount !== 1) return
+  if ([...caption.childNodes].some((node) => node !== emphasis && node.textContent?.trim())) return
+  if (/^(?:Image sources?[:：]|图片来源[:：])/i.test(emphasis.textContent?.trim() ?? ''))
+    return caption
 }
 
 const sameGallery = (current: MountedGallery, next: Gallery) =>
@@ -101,7 +210,11 @@ const makeButton = (document: Document, label: string, text: string) => {
   return button
 }
 
-const mountGallery = (block: HTMLParagraphElement, gallery: Gallery): MountedGallery => {
+const mountGallery = (
+  block: HTMLParagraphElement,
+  gallery: Gallery,
+  canOpenDialog: boolean,
+): MountedGallery => {
   const restore = [
     setAttributes(block, {
       'data-reply-image-group': gallery.layout,
@@ -112,12 +225,14 @@ const mountGallery = (block: HTMLParagraphElement, gallery: Gallery): MountedGal
     restore.push(
       setAttributes(element, {
         'data-reply-image-tile': String(index + 1),
-        ...(gallery.layout === 'strip' && index >= 3 ? { 'data-reply-image-overflow': '' } : {}),
+        ...(canOpenDialog && gallery.layout === 'strip' && index >= 3
+          ? { 'data-reply-image-overflow': '' }
+          : {}),
       }),
     )
   })
   let badge: HTMLButtonElement | undefined
-  if (gallery.layout === 'strip' && gallery.tiles.length > 3) {
+  if (canOpenDialog && gallery.layout === 'strip' && gallery.tiles.length > 3) {
     const count = gallery.tiles.length
     badge = makeButton(block.ownerDocument, `View all ${count} images`, String(count))
     badge.dataset.replyImageBadge = ''
@@ -153,9 +268,10 @@ const buildViewer = (document: Document, images: HTMLImageElement[], start: numb
     index = (next + images.length) % images.length
     const image = images[index]!
     const enlarged = document.createElement('img')
-    const title = image.alt || 'Image preview'
+    const clean = cleanAlt(image.alt)
+    const title = clean || 'Image preview'
     const position = images.length > 1 ? ` · ${index + 1} / ${images.length}` : ''
-    enlarged.alt = image.alt
+    enlarged.alt = clean
     enlarged.decoding = 'async'
     enlarged.referrerPolicy = 'no-referrer'
     caption.textContent = `${title}${position}`
@@ -163,7 +279,7 @@ const buildViewer = (document: Document, images: HTMLImageElement[], start: numb
     enlarged.addEventListener('error', () => {
       if (!stage.contains(enlarged)) return
       enlarged.hidden = true
-      caption.textContent = `${image.alt || 'Image'} · Image unavailable${position}`
+      caption.textContent = `${clean || 'Image'} · Image unavailable${position}`
     })
     stage.replaceChildren(enlarged)
     enlarged.src = image.currentSrc || image.src
@@ -211,42 +327,192 @@ export const installImageEnhancements = (document: Document): (() => void) => {
   style.dataset.replyImages = ''
   style.textContent = IMAGE_STYLES
   document.head.append(style)
-  const zoom = new Map<HTMLImageElement, () => void>()
+  const zoom = new Map<HTMLImageElement, MountedZoom>()
+  const nativeImages = new Map<HTMLImageElement, () => void>()
   const galleries = new Map<HTMLParagraphElement, MountedGallery>()
+  const captions = new Map<HTMLParagraphElement, () => void>()
+  const directories = new Map<HTMLTableElement, () => void>()
+  const markers = new WeakMap<
+    HTMLImageElement,
+    { rawSrc: string; src: string; title: string; alt: string; marker: LayoutMarker | undefined }
+  >()
   const hasDialog = typeof document.createElement('dialog').showModal === 'function'
   let closeViewer: (() => void) | undefined
   let disposed = false
+  const mountedAt = new Date().toISOString()
+  const view = document.defaultView
+  let lastSummary: string | undefined
+
+  const imageMarker = (image: HTMLImageElement) => {
+    const rawSrc = image.getAttribute('src') ?? ''
+    const src = image.src
+    const control = zoom.get(image)
+    const title = control?.label === image.title ? (control.originalTitle ?? '') : image.title
+    const alt = image.alt
+    const cached = markers.get(image)
+    if (
+      cached?.rawSrc === rawSrc &&
+      cached.src === src &&
+      cached.title === title &&
+      cached.alt === alt
+    )
+      return cached.marker
+    let marker: LayoutMarker | undefined
+    for (const source of [rawSrc, src]) {
+      const hash = source.indexOf('#')
+      if (hash < 0) continue
+      marker = parseMarker(source.slice(hash + 1), 'hash')
+      if (marker) break
+    }
+    marker ??= parseMarker(title, 'title') ?? parseAltMarker(alt)
+    markers.set(image, { rawSrc, src, title, alt, marker })
+    return marker
+  }
+
+  const responseImages = () =>
+    [...document.querySelectorAll<HTMLImageElement>(`${RESPONSE} img`)].filter(inResponse)
+  const snapshot = () => {
+    const images = disposed ? [] : responseImages()
+    const paragraphs = new Set(images.map((image) => image.closest('p')))
+    return {
+      mounted: !disposed,
+      mountedAt,
+      images: images.map((image) => {
+        const marker = imageMarker(image)
+        return {
+          src: image.src.slice(0, 180),
+          classList: [...image.classList],
+          marker: marker && { ...marker },
+          markdownImage: markdownImage(image),
+          available: isAvailable(image),
+        }
+      }),
+      paragraphs: [...paragraphs]
+        .filter((block) => block !== null)
+        .map((block) => {
+          const result = readGallery(block, imageMarker, galleries.get(block)?.badge)
+          const imageCount = block.querySelectorAll('img').length
+          return typeof result === 'string'
+            ? { status: 'rejected' as const, reason: result, imageCount }
+            : { status: 'matched' as const, layout: result.layout, imageCount }
+        }),
+    }
+  }
+  const debug = Object.freeze({ snapshot })
+  if (view) Object.defineProperty(view, '__replyImagesDebug', { value: debug, configurable: true })
+
+  const logSnapshot = () => {
+    try {
+      if (view?.localStorage.getItem('reply-images:debug') !== '1') return
+      const state = snapshot()
+      const summary = { imageCount: state.images.length, paragraphs: state.paragraphs }
+      const signature = JSON.stringify(summary)
+      if (signature === lastSummary) return
+      lastSummary = signature
+      console.debug('[reply-with-images]', summary)
+    } catch {
+      // The client can restrict localStorage access.
+    }
+  }
+
+  const restoreZoom = (image: HTMLImageElement, control: MountedZoom) => {
+    control.restore()
+    if (image.title !== control.label) return
+    if (control.originalTitle === null) image.removeAttribute('title')
+    else image.title = control.originalTitle
+  }
 
   const refresh = () => {
-    if (disposed || !hasDialog) return
-    for (const [image, restore] of zoom) {
-      if (image.isConnected && markdownImage(image) && isAvailable(image)) continue
+    if (disposed) return
+    const nextDirectories = new Set(
+      [...document.querySelectorAll<HTMLTableElement>(`${RESPONSE} table`)].filter(
+        isImageDirectory,
+      ),
+    )
+    for (const [table, restore] of directories) {
+      if (nextDirectories.has(table)) continue
       restore()
+      directories.delete(table)
+    }
+    for (const table of nextDirectories) {
+      if (!directories.has(table))
+        directories.set(table, setAttributes(table, { 'data-reply-image-directory': '' }))
+    }
+    for (const [image, control] of zoom) {
+      if (
+        image.isConnected &&
+        markdownImage(image) &&
+        !nativeImageButton(image) &&
+        isAvailable(image)
+      )
+        continue
+      restoreZoom(image, control)
       zoom.delete(image)
     }
+    for (const [image, restore] of nativeImages) {
+      if (
+        image.isConnected &&
+        markdownImage(image) &&
+        nativeImageButton(image) &&
+        isAvailable(image)
+      )
+        continue
+      restore()
+      nativeImages.delete(image)
+    }
     const paragraphs = new Set<HTMLParagraphElement>()
-    for (const image of document.querySelectorAll<HTMLImageElement>(`${RESPONSE} img`)) {
-      if (!markdownImage(image) || !isAvailable(image)) continue
-      if (!zoom.has(image)) {
-        const label = `View image: ${image.alt || 'image'}`
-        zoom.set(
-          image,
-          setAttributes(image, {
-            tabindex: '0',
-            role: 'button',
-            'aria-haspopup': 'dialog',
-            'aria-label': label,
-            title: label,
-            'data-reply-image-zoom': '',
-          }),
-        )
-      }
+    const nextCaptions = new Set<HTMLParagraphElement>()
+    for (const image of responseImages()) {
+      if (!markdownImage(image)) continue
+      const marker = imageMarker(image)
       const block = image.closest('p')
-      if (block && imageFragment(image)) paragraphs.add(block)
+      if (block) {
+        const caption = imageCaption(block)
+        if (caption) nextCaptions.add(caption)
+        if (marker || (caption && !block.closest('table'))) paragraphs.add(block)
+      }
+      const hasNativeButton = nativeImageButton(image) !== null
+      if (hasNativeButton) {
+        if (isAvailable(image) && !nativeImages.has(image))
+          nativeImages.set(image, setAttributes(image, { 'data-reply-image-single': '' }))
+      } else if (hasDialog && isAvailable(image)) {
+        let control = zoom.get(image)
+        if (!control) {
+          const label = `View image: ${cleanAlt(image.alt) || 'image'}`
+          control = {
+            label,
+            originalTitle: image.getAttribute('title'),
+            restore: setAttributes(image, {
+              tabindex: '0',
+              role: 'button',
+              'aria-haspopup': 'dialog',
+              'aria-label': label,
+              'data-reply-image-zoom': '',
+            }),
+          }
+          zoom.set(image, control)
+        }
+        if (image.title !== control.label) {
+          control.originalTitle = image.getAttribute('title')
+          image.title = control.label
+        }
+      }
+    }
+    for (const [caption, restore] of captions) {
+      if (nextCaptions.has(caption)) continue
+      restore()
+      captions.delete(caption)
+    }
+    for (const caption of nextCaptions) {
+      if (!captions.has(caption))
+        captions.set(caption, setAttributes(caption, { 'data-reply-image-caption': '' }))
     }
     for (const block of new Set([...galleries.keys(), ...paragraphs])) {
       const current = galleries.get(block)
-      const next = paragraphs.has(block) ? readGallery(block, current?.badge) : undefined
+      const result = paragraphs.has(block)
+        ? readGallery(block, imageMarker, current?.badge)
+        : undefined
+      const next = typeof result === 'object' ? result : undefined
       if (
         next &&
         current &&
@@ -255,9 +521,10 @@ export const installImageEnhancements = (document: Document): (() => void) => {
       )
         continue
       current?.restore()
-      if (next) galleries.set(block, mountGallery(block, next))
+      if (next) galleries.set(block, mountGallery(block, next, hasDialog))
       else galleries.delete(block)
     }
+    logSnapshot()
   }
 
   const open = (trigger: HTMLElement, images: HTMLImageElement[], index: number) => {
@@ -280,13 +547,51 @@ export const installImageEnhancements = (document: Document): (() => void) => {
     close.focus()
   }
 
+  const groupMembersFor = (image: HTMLImageElement) => {
+    const block = image.closest('p')
+    const gallery = block ? galleries.get(block) : undefined
+    if (gallery?.tiles.some(({ image: tile }) => tile === image))
+      return gallery.tiles.map(({ image: tile }) => tile)
+    const table = image.closest('table')
+    if (table)
+      return [...table.querySelectorAll('img')].filter(
+        (candidate) =>
+          candidate.closest('table') === table &&
+          (zoom.has(candidate) || nativeImages.has(candidate)) &&
+          isAvailable(candidate),
+      )
+    return [image]
+  }
+
+  const isActivation = (event: MouseEvent | KeyboardEvent) =>
+    event instanceof MouseEvent
+      ? event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+      : event.key === 'Enter' || event.key === ' '
+
+  const activateNativeGroup = (event: MouseEvent | KeyboardEvent) => {
+    if (!hasDialog || event.defaultPrevented || !isActivation(event)) return
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const button = target.closest('button')
+    const image = button?.querySelector('img')
+    if (
+      !button ||
+      !image ||
+      nativeImageButton(image) !== button ||
+      !markdownImage(image) ||
+      !isAvailable(image)
+    )
+      return
+    const members = groupMembersFor(image)
+    if (members.length <= 1) return
+    event.preventDefault()
+    event.stopPropagation()
+    open(button, members, members.indexOf(image))
+  }
+
   const activate = (event: MouseEvent | KeyboardEvent) => {
     const trigger = event.target
-    if (!(trigger instanceof HTMLElement) || event.defaultPrevented) return
-    if (event instanceof MouseEvent) {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
-        return
-    } else if (event.key !== 'Enter' && event.key !== ' ') return
+    if (!(trigger instanceof HTMLElement) || event.defaultPrevented || !isActivation(event)) return
     const block = trigger.closest('p')
     const gallery = block ? galleries.get(block) : undefined
     if (gallery?.badge === trigger) {
@@ -305,14 +610,7 @@ export const installImageEnhancements = (document: Document): (() => void) => {
       !markdownImage(trigger)
     )
       return
-    const table = trigger.closest('table')
-    const members = gallery?.tiles.some(({ image }) => image === trigger)
-      ? gallery.tiles.map(({ image }) => image)
-      : table
-        ? [...table.querySelectorAll('img')].filter(
-            (image) => image.closest('table') === table && zoom.has(image) && isAvailable(image),
-          )
-        : [trigger]
+    const members = groupMembersFor(trigger)
     event.preventDefault()
     open(trigger, members, members.indexOf(trigger))
   }
@@ -330,11 +628,23 @@ export const installImageEnhancements = (document: Document): (() => void) => {
     subtree: true,
     attributes: true,
     characterData: true,
-    attributeFilter: ['src', 'srcset', 'href', 'class', 'data-chat-group-part'],
+    attributeFilter: [
+      'src',
+      'srcset',
+      'href',
+      'title',
+      'alt',
+      'class',
+      'colspan',
+      'rowspan',
+      'data-chat-group-part',
+    ],
   })
   const refreshImage = (event: Event) => {
     if (event.target instanceof HTMLImageElement && inResponse(event.target)) refresh()
   }
+  document.addEventListener('click', activateNativeGroup, true)
+  document.addEventListener('keydown', activateNativeGroup, true)
   document.addEventListener('click', activate)
   document.addEventListener('keydown', activate)
   document.addEventListener('load', refreshImage, true)
@@ -343,15 +653,25 @@ export const installImageEnhancements = (document: Document): (() => void) => {
   return () => {
     disposed = true
     observer.disconnect()
+    document.removeEventListener('click', activateNativeGroup, true)
+    document.removeEventListener('keydown', activateNativeGroup, true)
     document.removeEventListener('click', activate)
     document.removeEventListener('keydown', activate)
     document.removeEventListener('load', refreshImage, true)
     document.removeEventListener('error', refreshImage, true)
     closeViewer?.()
     for (const gallery of galleries.values()) gallery.restore()
-    for (const restore of zoom.values()) restore()
+    for (const [image, control] of zoom) restoreZoom(image, control)
+    for (const restore of nativeImages.values()) restore()
+    for (const restore of captions.values()) restore()
+    for (const restore of directories.values()) restore()
     galleries.clear()
     zoom.clear()
+    nativeImages.clear()
+    captions.clear()
+    directories.clear()
+    if (view && Object.getOwnPropertyDescriptor(view, '__replyImagesDebug')?.value === debug)
+      Reflect.deleteProperty(view, '__replyImagesDebug')
     style.remove()
   }
 }

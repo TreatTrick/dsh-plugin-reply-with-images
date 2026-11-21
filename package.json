@@ -31,6 +31,7 @@
     "format:check": "prettier --check .",
     "preview:generate": "tsx scripts/generatePreview.ts",
     "preview:client": "npm run build && tsx scripts/clientPreview.ts",
+    "analyze:session": "tsx scripts/analyzeSession.ts",
     "prepack": "npm run build"
   },
   "engines": {

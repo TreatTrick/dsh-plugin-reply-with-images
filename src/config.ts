@@ -2,19 +2,16 @@ import Schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 
 const providerSchema = z.enum(['baidu', 'so360', 'bing', 'wikimedia'])
+const DEFAULT_PROVIDERS: z.infer<typeof providerSchema>[] = ['bing', 'so360', 'baidu', 'wikimedia']
 const positive = z.number().int().positive()
 const budgets = {
-  images: { default: 8, max: 16 },
-  searches: { default: 6, max: 12 },
+  images: { default: 12, max: 20 },
+  searches: { default: 8, max: 16 },
   candidates: { default: 10, max: 20 },
 }
 const configSchema = z
   .object({
-    providers: z
-      .array(providerSchema)
-      .min(1)
-      .max(4)
-      .default(['wikimedia', 'baidu', 'so360', 'bing']),
+    providers: z.array(providerSchema).min(1).max(4).default(DEFAULT_PROVIDERS),
     maxImagesPerTurn: positive.max(budgets.images.max).default(budgets.images.default),
     maxSearchesPerTurn: positive.max(budgets.searches.max).default(budgets.searches.default),
     maxCandidates: positive.max(budgets.candidates.max).default(budgets.candidates.default),
@@ -24,6 +21,8 @@ const configSchema = z
     automatic: z.boolean().default(true),
     allowFakeIpDns: z.boolean().default(false),
     publicBaseUrl: z.string().default(''),
+    debugLog: z.boolean().default(true),
+    debugLogPath: z.string().default(''),
   })
   .superRefine((value, context) => {
     if (new Set(value.providers).size !== value.providers.length)
@@ -54,9 +53,9 @@ export type Config = Partial<ResolvedConfig>
 /** Configuration entry point for the Cordis settings panel and YAML. */
 export const Config: Schema<Config> = Schema.object({
   providers: Schema.array(Schema.union(['baidu', 'so360', 'bing', 'wikimedia']))
-    .default(['wikimedia', 'baidu', 'so360', 'bing'])
+    .default(DEFAULT_PROVIDERS)
     .description(
-      'Try Wikimedia with license metadata first, then fall back to mainland and Bing providers',
+      'Try Bing and mainland providers first, with Wikimedia as a licensed-source fallback',
     ),
   maxImagesPerTurn: Schema.number()
     .default(budgets.images.default)
@@ -84,6 +83,10 @@ export const Config: Schema<Config> = Schema.object({
     .description(
       'Support proxy Fake-IP DNS by additionally allowing only 198.18.0.0/15 and 2001:2::/48',
     ),
+  debugLog: Schema.boolean().default(true).description('Write local JSONL image diagnostics'),
+  debugLogPath: Schema.string()
+    .default('')
+    .description('Override the default local image diagnostics path'),
   publicBaseUrl: Schema.string()
     .default('')
     .description('Browser-facing Harness URL for reverse-proxy deployments'),

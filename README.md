@@ -4,7 +4,7 @@ Documentation is maintained in English.
 
 An independent TypeScript community bundle that adds relevant real images to DeepSeek Harness answers. It uses official Harness services, with no dependency on third-party DSH search/display plugins. This project owns provider adapters, downloading and candidate handling; ordinary runtime dependencies include Zod, Cheerio and ipaddr.js.
 
-Detailed answers about people, organizations, news, products and places receive guidance to use relevant images only when they add visual value. In one `reply_images_prepare` call, the model can create standard Markdown tables, three-image collages, strips of up to five views, or ordinary inline images. The default per-turn budgets are six searches and eight images. Failed or duplicate candidates are skipped, successful images retain source and license captions, and unavailable images leave a useful text answer.
+Detailed answers about people, organizations, news, products and places receive guidance to use relevant images only when they add visual value. In one `reply_images_prepare` call, the model can prepare up to six sections using standard Markdown tables, three-image collages, strips of up to five views, or ordinary inline images. The default per-turn budgets are eight searches and twelve images (configurable up to sixteen searches and twenty images). Candidate ranking favors relevant official sites, encyclopedias and mainstream media over watermarked stock sites and unsolicited SEO gossip. Failed or duplicate candidates are skipped, successful images retain source and license captions, and unavailable images leave a useful text answer.
 
 An optional DSH Web client entry presents image tables as compact, responsive image rows or comparison groups and adds keyboard-accessible zoom for ordinary Markdown images. It does not replace host Markdown: without the client, images remain standard Markdown. DSH's own image viewer remains in place wherever the host already provides one.
 
@@ -34,8 +34,8 @@ Override the installed row in your profile's `cordis.patch.yml`:
   config:
     providers: [wikimedia, baidu, so360, bing]
     automatic: true
-    maxImagesPerTurn: 8
-    maxSearchesPerTurn: 6
+    maxImagesPerTurn: 12
+    maxSearchesPerTurn: 8
     maxCandidates: 10
     requestTimeoutMs: 8000
     maxImageBytes: 5242880
@@ -64,7 +64,7 @@ Baidu, 360 and Bing use unofficial web endpoints that may change or return CAPTC
 
 ## Preview
 
-Run `npm run preview:generate`, then open the locally generated `preview.html` for a self-contained illustrated answer. Run `npm run preview:client`, then open `client-preview.html` to inspect the compiled DSH Web client against a two-column subject index and an image comparison table. The latter uses remote Unsplash preview images; it does not download or package them. Both previews are demonstrations, not full model-session acceptance tests, and generated HTML stays local.
+Run `npm run preview:generate`, then open the locally generated `preview.html` for a self-contained illustrated answer. Run `npm run preview:client`, then open `client-preview.html` to inspect the compiled DSH Web client against portrait directory cards, collages, image strips and comparison tables. Generic directory headers remain accessible to screen readers while visually hidden, and source captions use compact links. The latter uses remote preview images; it does not download or package them. Both previews are demonstrations, not full model-session acceptance tests, and generated HTML stays local.
 
 Regenerate with `npm run preview:generate`, optionally appending `-- --allow-fake-ip-dns` for a known Fake-IP network. This sends two example queries online. Both images must succeed before replacing the preview; diagnostics and attachments live in ignored `.preview/`.
 

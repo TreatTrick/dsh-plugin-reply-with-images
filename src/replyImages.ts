@@ -13,6 +13,8 @@ import { plainText } from './search/providers.js'
 import { searchImages } from './search/search.js'
 import type { SearchImage } from './search/types.js'
 import { imageUrl } from './search/urls.js'
+import { imageDimensions } from './imageDimensions.js'
+import { diagnosticError, type DiagnosticSink } from './diagnostics.js'
 
 /** Storage and network access are the only external dependencies of the core workflow. */
 export interface ReplyImagesDependencies {
@@ -21,6 +23,7 @@ export interface ReplyImagesDependencies {
   /** Use a compatible Markdown image destination when the client has a dedicated authentication channel. */
   imageDestination?: (ref: ImageAttachmentRef) => string
   read?: HttpRead
+  trace?: DiagnosticSink
 }
 export interface ImageSelection {
   candidateId: string
@@ -134,6 +137,7 @@ interface SavedImage {
   destination: string
   alt: string
   source: string
+  dimensions: { width: number; height: number; bytes: number }
 }
 
 const imageMarkdown = (image: SavedImage, destination = image.destination) =>
@@ -147,12 +151,21 @@ const embedded = (image: SavedImage): EmbeddedImage => ({
   markdown: `${imageMarkdown(image)}\n\n*Image source: ${image.source}*`,
 })
 
+const COLLAGE_ALT_MARK = '\u200B\u200C'
+const STRIP_ALT_MARK = '\u200B\u200D'
 const tableCell = (text: string) => text.replace(/(?<!\\)\|/g, '\\|').replace(/\s*\n\s*/g, ' ')
+
+interface TableRowEntry {
+  image?: SavedImage
+  alt: string
+  caption: string | undefined
+}
 
 const renderTopic = (
   topic: string,
   requested: ImageLayout,
   saved: { image: SavedImage; caption: string | undefined }[],
+  tableRows: readonly TableRowEntry[],
   warnings: string[],
 ): PreparedImageTopic => {
   const count = saved.length
@@ -173,16 +186,22 @@ const renderTopic = (
     markdown = [
       '| Image | Description | Source and license |',
       '| --- | --- | --- |',
-      ...saved.map(
-        ({ image, caption }) =>
-          `| ${tableCell(imageMarkdown(image))} | ${tableCell(caption ? escapeText(caption) : image.alt)} | ${tableCell(image.source)} |`,
-      ),
+      ...tableRows.map(({ image, alt, caption }) => {
+        const description = tableCell(
+          caption ? escapeText(caption) : image ? image.alt : escapeText(alt),
+        )
+        return image
+          ? `| ${tableCell(imageMarkdown(image))} | ${description} | ${tableCell(image.source)} |`
+          : `| — | ${description} | — |`
+      }),
     ].join('\n')
   } else if (count && (layout === 'collage' || layout === 'strip')) {
     const group = randomUUID()
+    const altMark = layout === 'collage' ? COLLAGE_ALT_MARK : STRIP_ALT_MARK
     const row = saved
       .map(({ image }) => {
-        if (!/^https?:\/\//i.test(image.destination)) return imageMarkdown(image)
+        if (!/^https?:\/\//i.test(image.destination))
+          return `![${image.alt}${altMark}](<${image.destination}> "dsh-layout=${layout}&group=${group}")`
         const url = new URL(image.destination)
         url.hash = `dsh-layout=${layout}&group=${group}`
         return imageMarkdown(image, url.href)
@@ -242,7 +261,7 @@ export class ReplyImages {
       if (!trimmed || trimmed.length > 200)
         throw new ToolArgsError(['Search queries must contain 1–200 characters.'])
       this.candidates.reserveSearch(scope, this.config.maxSearchesPerTurn)
-      const found = await this.findImages(trimmed, abort)
+      const found = await this.findImages(trimmed, abort, this.traceFor(scope))
       return {
         images: this.candidates
           .add(scope, found.images)
@@ -254,9 +273,19 @@ export class ReplyImages {
 
   /** 单次准备对应正文主题的 Markdown，并在网络工作前预留全部额度。 */
   prepare(scope: ReplyScope, topics: readonly ImageTopic[], signal: AbortSignal) {
+    const trace = this.traceFor(scope)
+    const started = performance.now()
+    const outcomes: Record<string, unknown>[] = []
+    trace?.('prepare.start', { topics })
+    const done = (fields: Record<string, unknown>) =>
+      trace?.('prepare.done', {
+        elapsedMs: Math.round(performance.now() - started),
+        topics: outcomes,
+        ...fields,
+      })
     return this.run(signal, async (abort) => {
-      if (topics.length < 1 || topics.length > 5)
-        throw new ToolArgsError(['Prepare 1–5 image topics per call.'])
+      if (topics.length < 1 || topics.length > 6)
+        throw new ToolArgsError(['Prepare 1–6 image topics per call.'])
       const normalized = topics.map(normalizeTopic)
       this.candidates.reservePreparation(
         scope,
@@ -267,29 +296,61 @@ export class ReplyImages {
       )
       const prepared: PreparedImageTopic[] = []
       for (const { topic, layout, searches } of normalized) {
+        const traceTopic: DiagnosticSink | undefined =
+          trace && ((event, fields) => trace(event, { topic, ...fields }))
         const saved: { image: SavedImage; caption: string | undefined }[] = []
+        const tableRows: TableRowEntry[] = []
         const warnings: string[] = []
         for (const { query, alt, caption, count } of searches) {
-          const found = await this.findImages(query, abort)
+          const found = await this.findImages(query, abort, traceTopic)
           warnings.push(...found.warnings)
           let accepted = 0
           for (const candidate of found.images) {
-            const image = await this.saveCandidate(candidate, alt, abort, warnings)
+            const image = await this.saveCandidate(candidate, alt, abort, warnings, traceTopic)
             if (!image) continue
+            const details = {
+              provider: candidate.provider,
+              title: candidate.title,
+              ...image.dimensions,
+            }
             if (!this.candidates.rememberAttachment(scope, image.attachmentId)) {
               warnings.push(`${candidate.title}: Skipped duplicate image content.`)
+              traceTopic?.('candidate.skipped', { ...details, reason: 'duplicate' })
               continue
             }
+            traceTopic?.('candidate.saved', details)
             saved.push({ image, caption })
+            tableRows.push({ image, alt, caption })
             if (++accepted === count) break
           }
-          if (!accepted) warnings.push(`${query}: No usable image result; continue with text.`)
-          else if (accepted < count)
+          if (!accepted) {
+            warnings.push(`${query}: No usable image result; continue with text.`)
+            if (layout === 'table') tableRows.push({ alt, caption })
+          } else if (accepted < count)
             warnings.push(`${query}: Prepared ${accepted} of ${count} requested images.`)
         }
-        prepared.push(renderTopic(topic, layout, saved, warnings))
+        const rendered = renderTopic(topic, layout, saved, tableRows, warnings)
+        prepared.push(rendered)
+        const firstImage = saved[0]?.image
+        const isGallery = rendered.layout === 'collage' || rendered.layout === 'strip'
+        outcomes.push({
+          topic,
+          requestedLayout: layout,
+          layout: rendered.layout,
+          imageCount: saved.length,
+          ...(layout !== rendered.layout
+            ? { downgradeReason: saved.length > 3 ? 'collage-capacity' : 'insufficient-images' }
+            : {}),
+          markerChannel:
+            isGallery && firstImage
+              ? /^https?:\/\//i.test(firstImage.destination)
+                ? 'hash'
+                : 'alt+title'
+              : 'none',
+          warnings,
+        })
       }
-      return {
+      const result = {
         topics: prepared,
         markdown: prepared
           .map((item) => item.markdown)
@@ -297,14 +358,33 @@ export class ReplyImages {
           .join('\n\n'),
         warnings: prepared.flatMap((item) => item.warnings),
       }
+      done({})
+      return result
+    }).catch((error: unknown) => {
+      done({ error: diagnosticError(error) })
+      throw error
     })
   }
 
-  private async findImages(query: string, signal: AbortSignal) {
+  private traceFor({ sessionId, turn, callId }: ReplyScope): DiagnosticSink | undefined {
+    const trace = this.dependencies.trace
+    return (
+      trace &&
+      ((event, fields) =>
+        trace(event, {
+          ...fields,
+          ...(sessionId ? { sessionTurn: { sessionId, turn } } : {}),
+          ...(callId ? { callId } : {}),
+        }))
+    )
+  }
+
+  private async findImages(query: string, signal: AbortSignal, trace: DiagnosticSink | undefined) {
     const found = await searchImages(query, {
       config: this.config,
       read: this.read,
       signal,
+      ...(trace ? { trace } : {}),
     })
     signal.throwIfAborted()
     return found
@@ -324,9 +404,21 @@ export class ReplyImages {
       )
       const images: EmbeddedImage[] = []
       const warnings: string[] = []
+      const trace = this.traceFor(scope)
       for (const [index, candidate] of chosen.entries()) {
-        const image = await this.saveCandidate(candidate, selections[index]?.alt, abort, warnings)
+        const image = await this.saveCandidate(
+          candidate,
+          selections[index]?.alt,
+          abort,
+          warnings,
+          trace,
+        )
         if (!image) continue
+        trace?.('candidate.saved', {
+          provider: candidate.provider,
+          title: candidate.title,
+          ...image.dimensions,
+        })
         this.candidates.rememberAttachment(scope, image.attachmentId)
         images.push(embedded(image))
       }
@@ -339,8 +431,10 @@ export class ReplyImages {
     alt: string | undefined,
     signal: AbortSignal,
     warnings: string[],
+    trace?: DiagnosticSink,
   ): Promise<SavedImage | undefined> {
     signal.throwIfAborted()
+    let details: Record<string, unknown> = { provider: candidate.provider, title: candidate.title }
     try {
       const downloaded = await this.read(candidate.imageUrl, signal, {
         maxBytes: this.config.maxImageBytes,
@@ -349,8 +443,25 @@ export class ReplyImages {
         allowUrl: (value) => imageUrl(value, candidate.provider) !== undefined,
       })
       signal.throwIfAborted()
+      details = { ...details, bytes: downloaded.data.byteLength }
       const mediaType = mediaTypeOf(downloaded.contentType, downloaded.data)
       if (mediaType === undefined) throw new Error('Unsupported image format')
+      const dimensions = imageDimensions(mediaType, downloaded.data)
+      if (dimensions) {
+        details = { ...details, ...dimensions }
+        const aspect = dimensions.width / dimensions.height
+        const reason =
+          dimensions.width < 120 || dimensions.height < 80
+            ? 'too-small'
+            : aspect > 4.5 || aspect < 0.22
+              ? 'extreme-aspect'
+              : undefined
+        if (reason) {
+          warnings.push(`${candidate.title}: Skipped low-quality image (${reason}).`)
+          trace?.('candidate.skipped', { ...details, reason })
+          return undefined
+        }
+      }
       const ref = await this.dependencies.attachments.saveImage({
         data: downloaded.data,
         mediaType,
@@ -373,13 +484,23 @@ export class ReplyImages {
         sourceUrl: candidate.sourceUrl,
         license: candidate.license,
         attachmentId: ref.attachmentId,
+        dimensions: {
+          ...dimensions,
+          width: ref.width,
+          height: ref.height,
+          bytes: downloaded.data.byteLength,
+        },
       }
     } catch (error) {
       signal.throwIfAborted()
       if (error instanceof Error && error.name === 'AbortError') throw error
-      warnings.push(
-        `${candidate.title}: Image download or save failed (${error instanceof Error ? error.message.slice(0, 120) : 'Unknown error'})`,
-      )
+      const reason = diagnosticError(error)
+      trace?.('candidate.skipped', {
+        ...details,
+        reason: 'download-or-save-failed',
+        error: reason,
+      })
+      warnings.push(`${candidate.title}: Image download or save failed (${reason.slice(0, 120)})`)
     }
     return undefined
   }

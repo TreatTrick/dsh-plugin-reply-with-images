@@ -6,6 +6,8 @@ import type { SearchImage } from './search/types.js'
 export interface ReplyScope {
   owner: object
   turn: number
+  sessionId?: string
+  callId?: string
 }
 export interface Candidate extends SearchImage {
   candidateId: string

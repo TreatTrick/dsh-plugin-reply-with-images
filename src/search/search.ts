@@ -1,6 +1,8 @@
 import type { ResolvedConfig } from '../config.js'
+import { diagnosticError, type DiagnosticSink } from '../diagnostics.js'
 import { readHttp, type HttpRead } from '../http.js'
 import { parseSearchResponse } from './providers.js'
+import { rankCandidates } from './rank.js'
 import type { Provider, SearchImage } from './types.js'
 
 const endpoint = (provider: Provider, query: string): string => {
@@ -17,10 +19,16 @@ const endpoint = (provider: Provider, query: string): string => {
   }
 }
 
+const allowedSearchOrigin = (provider: Provider, url: string, candidate: string): boolean => {
+  const origin = new URL(candidate).origin
+  return origin === new URL(url).origin || (provider === 'bing' && origin === 'https://cn.bing.com')
+}
+
 interface SearchOptions {
   config: ResolvedConfig
   signal: AbortSignal
   read?: HttpRead
+  trace?: DiagnosticSink
 }
 
 /** Query in configured order; a provider failure adds diagnostics without blocking other providers. */
@@ -35,29 +43,56 @@ export const searchImages = async (
   for (const provider of options.config.providers) {
     options.signal.throwIfAborted()
     const url = endpoint(provider, query)
+    const started = performance.now()
     try {
       const response = await read(url, options.signal, {
         maxBytes: options.config.maxSearchBytes,
         timeoutMs: options.config.requestTimeoutMs,
         allowFakeIpDns: options.config.allowFakeIpDns,
-        allowUrl: (value) => new URL(value).origin === new URL(url).origin,
+        allowUrl: (value) => allowedSearchOrigin(provider, url, value),
       })
       const results = parseSearchResponse(provider, new TextDecoder().decode(response.data))
+      options.trace?.('search.provider', {
+        query,
+        provider,
+        elapsedMs: Math.round(performance.now() - started),
+        count: results.length,
+        titles: results.slice(0, 5).map(({ title }) => title),
+      })
       for (const image of results) {
         if (seen.has(image.imageUrl)) continue
         seen.add(image.imageUrl)
         images.push(image)
-        if (images.length === options.config.maxCandidates) return { images, warnings }
       }
       if (results.length === 0)
         warnings.push(`${provider}: No usable results; possible rate limit or page format change`)
+      if (images.length >= options.config.maxCandidates) break
     } catch (error) {
       options.signal.throwIfAborted()
       if (error instanceof Error && error.name === 'AbortError') throw error
-      warnings.push(
-        `${provider}: Search temporarily unavailable (${error instanceof Error ? error.message.slice(0, 160) : 'Upstream error'})`,
-      )
+      const reason = diagnosticError(error)
+      options.trace?.('search.provider', {
+        query,
+        provider,
+        elapsedMs: Math.round(performance.now() - started),
+        count: 0,
+        error: reason,
+      })
+      warnings.push(`${provider}: Search temporarily unavailable (${reason})`)
     }
   }
-  return { images, warnings }
+  const ranked = rankCandidates(query, images)
+  options.trace?.('search.ranked', {
+    query,
+    top: ranked.slice(0, 5).map(({ image, score, scores }) => ({
+      provider: image.provider,
+      title: image.title,
+      score,
+      scores,
+    })),
+  })
+  return {
+    images: ranked.slice(0, options.config.maxCandidates).map(({ image }) => image),
+    warnings,
+  }
 }
