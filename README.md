@@ -71,14 +71,14 @@ Real unedited DeepSeek Harness conversations powered by `dsh-plugin-reply-with-i
 
 **Requirements:** Node `>= 24.9` and a Web or Desktop DeepSeek Harness profile (`>=0.2.2-rc.3 <0.3.0`) providing the official `agents`, `tools`, `systemPrompt`, `attachments`, `connection`, and `webServer` services. _(Headless-only profiles cannot supply the display environment.)_
 
-### Option 1: Install the Pre-Built Package (Fastest)
+### Option 1: One-Line Install from GitHub Release (Fastest)
 
-Download `dsh-plugin-reply-with-images-0.1.4.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) (or pack it locally with `npm pack`).
+No build step or manual download required — install directly from the [`v0.1.4` release package](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/tag/v0.1.4):
 
 #### DSH Web
 
 ```sh
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
 dsh --profile web
 ```
 
@@ -90,16 +90,18 @@ dsh --profile web
    **Windows (PowerShell):**
 
    ```powershell
-   & "<DSH_INSTALL_DIR>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add .\dsh-plugin-reply-with-images-0.1.4.tgz
+   & "<DSH_INSTALL_DIR>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
    ```
 
    **macOS / Linux:**
 
    ```sh
-   dsh plugin --profile desktop add ./dsh-plugin-reply-with-images-0.1.4.tgz
+   dsh plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
    ```
 
 3. **Reopen** DeepSeek Harness Desktop and start a new conversation.
+
+> **Offline / manual download:** You can also download `dsh-plugin-reply-with-images-0.1.4.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass `./dsh-plugin-reply-with-images-0.1.4.tgz` instead of the URL.
 
 ### Option 2: Build & Install from Source
 

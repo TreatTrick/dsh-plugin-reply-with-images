@@ -71,35 +71,37 @@
 
 **环境要求：** Node `>= 24.9`，以及包含官方 `agents`、`tools`、`systemPrompt`、`attachments`、`connection`、`webServer` 服务的 DSH Web 或 Desktop profile（适配 `>=0.2.2-rc.3 <0.3.0`）。_（纯无头模式不支持页面图片展示。）_
 
-### 方式一：直接安装预打包 `.tgz`（推荐，最快上手）
+### 方式一：一行命令直接安装（推荐，免编译免手动下载）
 
-前往 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 下载 `dsh-plugin-reply-with-images-0.1.4.tgz`（或在本地执行 `npm pack` 生成）。
+直接从 [`v0.1.4` GitHub Release](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/tag/v0.1.4) 一键安装：
 
 #### DSH Web
 
 ```sh
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
 dsh --profile web
 ```
 
 #### DSH Desktop（桌面端）
 
 1. **完全退出** DeepSeek Harness Desktop（确认托盘/后台进程已退出）。
-2. 使用桌面端安装目录自带的 `dsh` 命令安装 tarball：
+2. 使用桌面端安装目录自带的 `dsh` 命令一键安装：
 
    **Windows（PowerShell）：**
 
    ```powershell
-   & "<DSH安装目录>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add .\dsh-plugin-reply-with-images-0.1.4.tgz
+   & "<DSH安装目录>\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
    ```
 
    **macOS / Linux：**
 
    ```sh
-   dsh plugin --profile desktop add ./dsh-plugin-reply-with-images-0.1.4.tgz
+   dsh plugin --profile desktop add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
    ```
 
 3. **重新启动** DeepSeek Harness Desktop，新建对话即可体验。
+
+> **离线 / 手动下载安装：** 也可以先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.4.tgz`，再把上面命令中的 URL 替换成本地文件路径 `./dsh-plugin-reply-with-images-0.1.4.tgz`。
 
 ### 方式二：从源码构建并安装
 
