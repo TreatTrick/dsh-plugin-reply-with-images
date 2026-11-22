@@ -105,10 +105,10 @@ dsh --profile web
 ### 方式二：通过 GitHub Release 离线 / 直链安装
 
 ```sh
-dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.5/dsh-plugin-reply-with-images-0.1.5.tgz
 ```
 
-也可先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.4.tgz`，再传入本地路径。
+也可先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.5.tgz`，再传入本地路径。
 
 ### 方式三：从源码构建并安装
 
@@ -118,7 +118,7 @@ cd dsh-plugin-reply-with-images
 npm ci
 npm run check
 npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.5.tgz
 dsh --profile web
 ```
 
@@ -130,6 +130,7 @@ dsh --profile web
 
 - 升级插件不会改写历史对话里已生成的图片链接，请通过**新对话**验证新版本效果。
 - **版本演进：**
+  - `0.1.5`：修复人物表格等非单图主题误粘 `tableMarkdown` 导致的图片排版错乱，移除非单图主题的冗余 `tableMarkdown` 字段并强化表格粘贴指引，同时在客户端新增行内「图 + 来源」列表的可逆网格兜底排版。
   - `0.1.4`：扩展科学概念、实验现象与示意图场景的自动配图引导，优化多区块图文组合策略与插件元数据。
   - `0.1.3`：面向多章节长回答引入混合配图布局（表格 / 拼贴 / 图集）。
   - `0.1.2`：支持 Wikimedia Commons 许可图源与缩略图解析。

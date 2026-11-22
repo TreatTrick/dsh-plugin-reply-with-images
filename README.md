@@ -105,10 +105,10 @@ dsh --profile web
 ### Option 2: Install from GitHub Release (Offline / Direct Tarball)
 
 ```sh
-dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.4/dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.5/dsh-plugin-reply-with-images-0.1.5.tgz
 ```
 
-Or download `dsh-plugin-reply-with-images-0.1.4.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass the local path.
+Or download `dsh-plugin-reply-with-images-0.1.5.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass the local path.
 
 ### Option 3: Build & Install from Source
 
@@ -118,7 +118,7 @@ cd dsh-plugin-reply-with-images
 npm ci
 npm run check
 npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.4.tgz
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.5.tgz
 dsh --profile web
 ```
 
@@ -130,6 +130,7 @@ dsh --profile web
 
 - Upgrading does not rewrite image URLs in older messages — open a **new conversation** to test updated behavior.
 - **Release highlights:**
+  - `0.1.5`: Fixes malformed inline portrait-table layouts by omitting `tableMarkdown` on non-single layouts (`table`/`collage`/`strip`), clarifying table placement instructions, and adding a reversible client-side grid rescue for inline image-and-source lists.
   - `0.1.4`: Expands automatic visual illustration to science, experiments, and diagrams; refines multi-block layout selection and package/discovery metadata.
   - `0.1.3`: Encourages mixed multi-section visual layouts (tables, collages, strips) across detailed answers.
   - `0.1.2`: Adds Wikimedia Commons licensed search and thumbnail URL support.
