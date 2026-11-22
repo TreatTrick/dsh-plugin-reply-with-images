@@ -105,10 +105,10 @@ dsh --profile web
 ### 方式二：通过 GitHub Release 离线 / 直链安装
 
 ```sh
-dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.5/dsh-plugin-reply-with-images-0.1.5.tgz
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.6/dsh-plugin-reply-with-images-0.1.6.tgz
 ```
 
-也可先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.5.tgz`，再传入本地路径。
+也可先从 [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) 手动下载 `dsh-plugin-reply-with-images-0.1.6.tgz`，再传入本地路径。
 
 ### 方式三：从源码构建并安装
 
@@ -118,7 +118,7 @@ cd dsh-plugin-reply-with-images
 npm ci
 npm run check
 npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.5.tgz
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.6.tgz
 dsh --profile web
 ```
 
@@ -130,6 +130,7 @@ dsh --profile web
 
 - 升级插件不会改写历史对话里已生成的图片链接，请通过**新对话**验证新版本效果。
 - **版本演进：**
+  - `0.1.6`：默认开启 `allowFakeIpDns`，让代理 TUN / Fake-IP DNS 环境（`198.18.0.0/15` 与 `2001:2::/48`）开箱即可正常搜图（其余私网/回环/链路本地地址依然严格拦截），并在手动关闭时提供更清晰的 Fake-IP 报错提示。
   - `0.1.5`：修复人物表格等非单图主题误粘 `tableMarkdown` 导致的图片排版错乱，移除非单图主题的冗余 `tableMarkdown` 字段并强化表格粘贴指引，同时在客户端新增行内「图 + 来源」列表的可逆网格兜底排版。
   - `0.1.4`：扩展科学概念、实验现象与示意图场景的自动配图引导，优化多区块图文组合策略与插件元数据。
   - `0.1.3`：面向多章节长回答引入混合配图布局（表格 / 拼贴 / 图集）。
@@ -153,32 +154,32 @@ dsh --profile web
     requestTimeoutMs: 8000
     maxImageBytes: 5242880
     maxSearchBytes: 3145728
-    allowFakeIpDns: false
+    allowFakeIpDns: true
     publicBaseUrl: ''
     debugLog: true
     debugLogPath: ''
 ```
 
-| 配置项               | 默认值                            | 说明                                                                                                   |
-| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `providers`          | `[bing, so360, baidu, wikimedia]` | 按顺序执行的图源列表（1–4 个，不可重复）。                                                             |
-| `automatic`          | `true`                            | 是否自动配图；设为 `false` 时仅在用户明确要求配图时搜索。                                              |
-| `maxImagesPerTurn`   | `12`                              | 单轮回答最多展示的图片数（`1–20`）。                                                                   |
-| `maxSearchesPerTurn` | `8`                               | 单轮回答最多发起的搜索次数（`1–16`）。                                                                 |
-| `maxCandidates`      | `10`                              | 每次搜索最多返回的候选图数（`1–20`）。                                                                 |
-| `requestTimeoutMs`   | `8000`                            | 单次网络请求超时时间（毫秒，最高 `60000`）。                                                           |
-| `maxImageBytes`      | `5242880`                         | 单张下载图片体积上限（默认 5 MiB，最高 20 MiB）。                                                      |
-| `maxSearchBytes`     | `3145728`                         | 单次搜索响应体上限（默认 3 MiB，最高 10 MiB）。                                                        |
-| `allowFakeIpDns`     | `false`                           | 仅在明确的代理 Fake-IP 环境下开启（额外放行 `198.18.0.0/15` 与 `2001:2::/48`），其余内网地址依然拦截。 |
-| `publicBaseUrl`      | `''`                              | Web 反向代理部署时的浏览器访问根地址（含路径前缀）；Desktop 端自动忽略。                               |
-| `debugLog`           | `true`                            | 是否记录本地 JSONL 搜图诊断日志。                                                                      |
-| `debugLogPath`       | `''`                              | 自定义本地诊断日志输出路径。                                                                           |
+| 配置项               | 默认值                            | 说明                                                                                                                                   |
+| -------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `providers`          | `[bing, so360, baidu, wikimedia]` | 按顺序执行的图源列表（1–4 个，不可重复）。                                                                                             |
+| `automatic`          | `true`                            | 是否自动配图；设为 `false` 时仅在用户明确要求配图时搜索。                                                                              |
+| `maxImagesPerTurn`   | `12`                              | 单轮回答最多展示的图片数（`1–20`）。                                                                                                   |
+| `maxSearchesPerTurn` | `8`                               | 单轮回答最多发起的搜索次数（`1–16`）。                                                                                                 |
+| `maxCandidates`      | `10`                              | 每次搜索最多返回的候选图数（`1–20`）。                                                                                                 |
+| `requestTimeoutMs`   | `8000`                            | 单次网络请求超时时间（毫秒，最高 `60000`）。                                                                                           |
+| `maxImageBytes`      | `5242880`                         | 单张下载图片体积上限（默认 5 MiB，最高 20 MiB）。                                                                                      |
+| `maxSearchBytes`     | `3145728`                         | 单次搜索响应体上限（默认 3 MiB，最高 10 MiB）。                                                                                        |
+| `allowFakeIpDns`     | `true`                            | 默认兼容代理 Fake-IP DNS（仅额外放行 `198.18.0.0/15` 与 `2001:2::/48`），其余私网/回环地址依然拦截；严格服务端环境可手动设为 `false`。 |
+| `publicBaseUrl`      | `''`                              | Web 反向代理部署时的浏览器访问根地址（含路径前缀）；Desktop 端自动忽略。                                                               |
+| `debugLog`           | `true`                            | 是否记录本地 JSONL 搜图诊断日志。                                                                                                      |
+| `debugLogPath`       | `''`                              | 自定义本地诊断日志输出路径。                                                                                                           |
 
 <details>
 <summary><strong>代理网络、反向代理与使用边界说明</strong></summary>
 
 - **Web 反向代理：** 常规本地使用保持 `publicBaseUrl` 为空即可。若部署在反代之后，请填入浏览器实际访问的同源根 URL（含前缀路径），并将该前缀下的 `/api/reply-images` 转发到 Harness 且保留官方鉴权。图片 URL 不含任何鉴权 Token。
-- **代理与 Fake-IP：** 插件网络请求走 Node HTTPS，不会自动读取 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量；仅在已知 Fake-IP 代理环境中开启 `allowFakeIpDns`。
+- **代理与 Fake-IP：** 插件网络请求走 Node HTTPS，不会自动读取 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量；`allowFakeIpDns` 默认开启以开箱兼容 TUN / Fake-IP 代理（仅限 `198.18.0.0/15` 与 `2001:2::/48`，且仍受 HTTPS 图源白名单与 TLS 证书校验保护），在严格的无 Fake-IP 服务端部署中可设为 `false`。
 - **工具机制：** 除了主力批量工具 `reply_images_prepare`，还完整兼容分步工具 `reply_image_search` 与 `reply_images_embed`，便于精确挑选单张候选图。
 - **能力边界：** 是否调用工具及排版位置取决于模型对提示词的遵循程度；图片优选基于标题、来源与元数据而非视觉内容识别。非官方搜索引擎接口（Bing / 360 / 百度）可能偶发限流或验证码，失败时会平滑降级为纯文字回答。
 - **来源与版权：** 许可未确认的参考图会如实标注来源与“许可未确认”，不妨碍会话内参考展示；但来源标注不构成再发布授权，公开或商业使用前请自行核实图片版权。
@@ -194,7 +195,7 @@ npm run check          # 代码格式检查 + 严格 TS 类型检查 + 离线测
 npm run pack:check     # 预检 npm pack 打包清单
 ```
 
-- **真实搜图回答预览：** 运行 `npm run preview:generate`（Fake-IP 环境可加 `-- --allow-fake-ip-dns`），打开生成的 `preview.html`。
+- **真实搜图回答预览：** 运行 `npm run preview:generate`（如需禁用 Fake-IP 网段可加 `-- --no-fake-ip-dns`），打开生成的 `preview.html`。
 - **Web 客户端排版预览：** 运行 `npm run preview:client`，打开 `client-preview.html`，可直观检查人物目录卡片、三图拼贴、横向图集、多图对比、亮暗主题切换与键盘缩放交互。
 
 CI 在 **Windows、Linux、macOS** 上基于 Node 24 持续验证。贡献规范与测试要求详见 [CONTRIBUTING.md](CONTRIBUTING.md)（完整英文文档见 [README.md](README.md)）。

@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-reply-with-images",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Add real, context-aware reference images to DeepSeek Harness replies — portrait tables, 3-image collages, multi-angle strips & durable attachments",
   "keywords": [
     "dsh",

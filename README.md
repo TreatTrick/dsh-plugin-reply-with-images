@@ -105,10 +105,10 @@ dsh --profile web
 ### Option 2: Install from GitHub Release (Offline / Direct Tarball)
 
 ```sh
-dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.5/dsh-plugin-reply-with-images-0.1.5.tgz
+dsh plugin --profile web add https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/download/v0.1.6/dsh-plugin-reply-with-images-0.1.6.tgz
 ```
 
-Or download `dsh-plugin-reply-with-images-0.1.5.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass the local path.
+Or download `dsh-plugin-reply-with-images-0.1.6.tgz` from [**GitHub Releases**](https://github.com/TreatTrick/dsh-plugin-reply-with-images/releases/latest) and pass the local path.
 
 ### Option 3: Build & Install from Source
 
@@ -118,7 +118,7 @@ cd dsh-plugin-reply-with-images
 npm ci
 npm run check
 npm pack
-dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.5.tgz
+dsh plugin --profile web add ./dsh-plugin-reply-with-images-0.1.6.tgz
 dsh --profile web
 ```
 
@@ -130,6 +130,7 @@ dsh --profile web
 
 - Upgrading does not rewrite image URLs in older messages — open a **new conversation** to test updated behavior.
 - **Release highlights:**
+  - `0.1.6`: Enables `allowFakeIpDns` by default so proxy TUN / Fake-IP DNS environments (`198.18.0.0/15` and `2001:2::/48`) work out of the box while continuing to block all private/loopback/link-local addresses, and adds a clearer Fake-IP diagnostic error when explicitly disabled.
   - `0.1.5`: Fixes malformed inline portrait-table layouts by omitting `tableMarkdown` on non-single layouts (`table`/`collage`/`strip`), clarifying table placement instructions, and adding a reversible client-side grid rescue for inline image-and-source lists.
   - `0.1.4`: Expands automatic visual illustration to science, experiments, and diagrams; refines multi-block layout selection and package/discovery metadata.
   - `0.1.3`: Encourages mixed multi-section visual layouts (tables, collages, strips) across detailed answers.
@@ -153,33 +154,33 @@ Override the plugin row in your profile's `cordis.patch.yml` (or edit via the Co
     requestTimeoutMs: 8000
     maxImageBytes: 5242880
     maxSearchBytes: 3145728
-    allowFakeIpDns: false
+    allowFakeIpDns: true
     publicBaseUrl: ''
     debugLog: true
     debugLogPath: ''
 ```
 
-| Option               | Default                           | Description                                                                                                         |
-| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `providers`          | `[bing, so360, baidu, wikimedia]` | Ordered fallback list of image search providers (1–4 unique entries).                                               |
-| `automatic`          | `true`                            | Automatically illustrate helpful answers. Set to `false` to search only when the user explicitly asks for images.   |
-| `maxImagesPerTurn`   | `12`                              | Max images displayed per turn (`1–20`).                                                                             |
-| `maxSearchesPerTurn` | `8`                               | Max search requests per turn (`1–16`).                                                                              |
-| `maxCandidates`      | `10`                              | Max candidates returned per search (`1–20`).                                                                        |
-| `requestTimeoutMs`   | `8000`                            | Per-request network timeout in milliseconds (up to `60000`).                                                        |
-| `maxImageBytes`      | `5242880`                         | Max downloaded image size in bytes (5 MiB default, up to 20 MiB).                                                   |
-| `maxSearchBytes`     | `3145728`                         | Max search payload size in bytes (3 MiB default, up to 10 MiB).                                                     |
-| `allowFakeIpDns`     | `false`                           | Enable only for known proxy Fake-IP setups (`198.18.0.0/15` and `2001:2::/48`); all other private IPs stay blocked. |
-| `publicBaseUrl`      | `''`                              | Browser-facing Harness origin (including any path prefix) for reverse-proxy Web deployments. Ignored on Desktop.    |
-| `debugLog`           | `true`                            | Write bounded local JSONL diagnostics for troubleshooting image searches.                                           |
-| `debugLogPath`       | `''`                              | Custom path for local JSONL diagnostics.                                                                            |
+| Option               | Default                           | Description                                                                                                                                                                                            |
+| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `providers`          | `[bing, so360, baidu, wikimedia]` | Ordered fallback list of image search providers (1–4 unique entries).                                                                                                                                  |
+| `automatic`          | `true`                            | Automatically illustrate helpful answers. Set to `false` to search only when the user explicitly asks for images.                                                                                      |
+| `maxImagesPerTurn`   | `12`                              | Max images displayed per turn (`1–20`).                                                                                                                                                                |
+| `maxSearchesPerTurn` | `8`                               | Max search requests per turn (`1–16`).                                                                                                                                                                 |
+| `maxCandidates`      | `10`                              | Max candidates returned per search (`1–20`).                                                                                                                                                           |
+| `requestTimeoutMs`   | `8000`                            | Per-request network timeout in milliseconds (up to `60000`).                                                                                                                                           |
+| `maxImageBytes`      | `5242880`                         | Max downloaded image size in bytes (5 MiB default, up to 20 MiB).                                                                                                                                      |
+| `maxSearchBytes`     | `3145728`                         | Max search payload size in bytes (3 MiB default, up to 10 MiB).                                                                                                                                        |
+| `allowFakeIpDns`     | `true`                            | Supports proxy Fake-IP DNS (`198.18.0.0/15` and `2001:2::/48`) out of the box while keeping all private/loopback/link-local IPs blocked. Set to `false` in strict server environments without Fake-IP. |
+| `publicBaseUrl`      | `''`                              | Browser-facing Harness origin (including any path prefix) for reverse-proxy Web deployments. Ignored on Desktop.                                                                                       |
+| `debugLog`           | `true`                            | Write bounded local JSONL diagnostics for troubleshooting image searches.                                                                                                                              |
+| `debugLogPath`       | `''`                              | Custom path for local JSONL diagnostics.                                                                                                                                                               |
 
 <details>
 <summary><strong>Networking, Reverse Proxy &amp; Behavior Details</strong></summary>
 
 - **Reverse proxies (Web):** Leave `publicBaseUrl` empty to use the official WebServer origin. Behind a reverse proxy, set the exact browser-facing same-origin URL (including path prefix) and forward `/api/reply-images` under that prefix to Harness with official authentication. No auth token is ever embedded in image URLs. Changing the origin/path requires migrating absolute URLs in existing answers; stored attachments remain intact.
 - **Desktop:** Automatically uses provider-owned local image paths through DSH Desktop's authenticated native file-image channel, ignoring `publicBaseUrl`. Keep the local attachment store on the same host filesystem.
-- **Proxy / Fake-IP DNS:** Requests use Node HTTPS and do not automatically consume `HTTP_PROXY`/`HTTPS_PROXY`. Only enable `allowFakeIpDns` when running inside a known Fake-IP proxy environment.
+- **Proxy / Fake-IP DNS:** Requests use Node HTTPS and do not automatically consume `HTTP_PROXY`/`HTTPS_PROXY`. `allowFakeIpDns` defaults to `true` so TUN / Fake-IP proxies work out of the box (strictly limited to `198.18.0.0/15` and `2001:2::/48` with HTTPS CDN allowlists and TLS verification); set `allowFakeIpDns: false` to block those ranges in strict server deployments.
 - **Tool architecture:** `reply_images_prepare` reserves the complete batch against remaining search and image budgets before network access. Each topic accepts `{ topic, query, alt, layout?, count? }` or `{ topic, layout?, items: [{ query, alt, caption? }] }`. Step-by-step tools `reply_image_search({ query })` and `reply_images_embed({ candidates: [{ candidateId, alt? }] })` remain supported for exact candidate selection.
 - **Known limits:** Tool usage and placement depend on the model following prompt guidance. Candidate ranking relies on metadata/titles/sources rather than visual inspection. PNG/JPEG/WebP/GIF are supported and may be re-encoded by the attachment backend. Unofficial web endpoints (`bing`, `so360`, `baidu`) may throttle or return CAPTCHAs; failures fall back cleanly to text answers.
 - **Attribution & Rights:** Unknown image licenses remain visibly labeled as unconfirmed without blocking in-chat reference display. Source attribution does not grant republication rights — verify image rights before public or commercial reuse.
@@ -197,7 +198,7 @@ npm run pack:check     # Inspect tarball contents before publishing
 
 ### Local Previews
 
-- **Illustrated answer preview:** Run `npm run preview:generate` (optionally with `-- --allow-fake-ip-dns`) and open `preview.html` to see a self-contained illustrated reply generated from live queries.
+- **Illustrated answer preview:** Run `npm run preview:generate` (pass `-- --no-fake-ip-dns` to disable Fake-IP ranges) and open `preview.html` to see a self-contained illustrated reply generated from live queries.
 - **Web client layout preview:** Run `npm run preview:client` and open `client-preview.html` to inspect portrait directory cards, 3-image collages, horizontal strips, comparison tables, dark/light themes, and keyboard zoom.
 
 CI validates Node 24 across **Windows, Linux, and macOS**. See [CONTRIBUTING.md](CONTRIBUTING.md) for module responsibilities, testing rules, and coverage standards.
