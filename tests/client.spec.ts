@@ -887,3 +887,69 @@ it('enhances DSH 44.7+ _imageButton/_image DOM with alt markers, caption-inferre
   expect(collage.hasAttribute('data-reply-image-group')).toBe(false)
   expect(singleButton.querySelector('img')?.hasAttribute('data-reply-image-single')).toBe(false)
 })
+
+it('rescues inline image-and-source list paragraphs into a responsive grid with group lightbox and full cleanup', async () => {
+  const nativeTile = (n: number, alt: string) =>
+    `<button type="button" class="_imageButton_13jw0_471" title="Open"><img class="_image_13jw0_300" src="http://127.0.0.1:11346/api/file?path=C%3A%2Fperson${n}.png" alt="${alt}"></button>`
+  const sourceItem = (n: number, alt: string) =>
+    `${nativeTile(n, alt)} <em>Image source: <a href="https://example.com/${n}">source-${n}.org</a> · License unconfirmed</em>`
+  const section = response(`
+    <p id="rescued">${[1, 2, 3, 4, 5].map((n) => sourceItem(n, `Scientist ${n}`)).join(' · ')}</p>
+    <p id="web-pair"><img class="_7x_image" src="a.png" alt="A"> <em>图片来源：<a href="https://example.com/a">A</a></em> · <img class="_7x_image" src="b.png" alt="B"> <em>图片来源：<a href="https://example.com/b">B</a></em></p>
+    <p id="prose">Intro text ${sourceItem(6, 'Mixed')} · ${sourceItem(7, 'Mixed 2')}</p>
+    <p id="dangling">${sourceItem(8, 'Dangling')} · ${nativeTile(9, 'No source')}</p>
+    <table><tbody><tr><td><p id="in-table">${sourceItem(10, 'Cell 1')} · ${sourceItem(11, 'Cell 2')}</p></td></tr></tbody></table>
+  `)
+  const rescued = section.querySelector<HTMLParagraphElement>('#rescued')!
+  const webPair = section.querySelector<HTMLParagraphElement>('#web-pair')!
+  const prose = section.querySelector<HTMLParagraphElement>('#prose')!
+  const dangling = section.querySelector<HTMLParagraphElement>('#dangling')!
+  const inTable = section.querySelector<HTMLParagraphElement>('#in-table')!
+  const original = rescued.innerHTML
+
+  cleanup = installImageEnhancements(document)
+
+  expect(rescued.hasAttribute('data-reply-image-source-list')).toBe(true)
+  expect(rescued.dataset.replyImageCount).toBe('5')
+  expect(rescued.querySelectorAll('[data-reply-image-list-tile]')).toHaveLength(5)
+  expect(rescued.querySelectorAll('[data-reply-image-list-source]')).toHaveLength(5)
+  expect(webPair.hasAttribute('data-reply-image-source-list')).toBe(true)
+  expect(webPair.dataset.replyImageCount).toBe('2')
+  expect(prose.hasAttribute('data-reply-image-source-list')).toBe(false)
+  expect(dangling.hasAttribute('data-reply-image-source-list')).toBe(false)
+  expect(inTable.hasAttribute('data-reply-image-source-list')).toBe(false)
+
+  // Clicking a native tile inside the rescued list opens the 5-image lightbox.
+  const secondButton = rescued.querySelectorAll<HTMLButtonElement>('button')[1]!
+  const hostClick = vi.fn()
+  secondButton.addEventListener('click', hostClick)
+  secondButton.click()
+  expect(hostClick).not.toHaveBeenCalled()
+  const dialog = document.querySelector('dialog')!
+  expect(dialog.open).toBe(true)
+  expect(dialog.textContent).toContain('Scientist 2 · 2 / 5')
+  dialog.querySelector<HTMLButtonElement>('header button')!.click()
+  expect(document.querySelector('dialog')).toBeNull()
+
+  // Failing an image reconciles counts and falls back if fewer than 2 remain.
+  const webImages = webPair.querySelectorAll('img')
+  Object.defineProperty(webImages[1]!, 'complete', { configurable: true, value: true })
+  Object.defineProperty(webImages[1]!, 'naturalWidth', { configurable: true, value: 0 })
+  webImages[1]!.dispatchEvent(new Event('error'))
+  await Promise.resolve()
+  expect(webPair.hasAttribute('data-reply-image-source-list')).toBe(false)
+
+  // Adding non-separator text unmounts the rescued list cleanly.
+  const extra = document.createTextNode(' extra prose')
+  rescued.append(extra)
+  await Promise.resolve()
+  expect(rescued.hasAttribute('data-reply-image-source-list')).toBe(false)
+  extra.remove()
+  await Promise.resolve()
+  expect(rescued.hasAttribute('data-reply-image-source-list')).toBe(true)
+
+  cleanup()
+  cleanup = undefined
+  expect(rescued.hasAttribute('data-reply-image-source-list')).toBe(false)
+  expect(rescued.innerHTML).toBe(original)
+})

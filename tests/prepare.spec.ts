@@ -312,7 +312,10 @@ it('prepares table, collage, strip, and legacy sections with ordered sources and
   expect(topics[0]!.markdown).toContain('Role \\| description')
   expect(topics[0]!.markdown).toContain('| — | Unavailable portrait | — |')
   expect(topics[0]!.warnings.join()).toContain('Bad image')
-  expect(topics[0]!.images[0]!.tableMarkdown).toMatch(/Portrait.*License unconfirmed/)
+  expect(topics[0]!.tableMarkdown).toBeUndefined()
+  expect(topics[0]!.placement).toContain('complete Markdown table')
+  expect(topics[0]!.images[0]).not.toHaveProperty('markdown')
+  expect(topics[0]!.images[0]).not.toHaveProperty('tableMarkdown')
   for (const group of topics.slice(1, 3)) {
     const [images, sources] = group.markdown.split('\n\n')
     const tokens = [...images!.matchAll(/#dsh-layout=(\w+)&group=([\w-]+)/g)]
@@ -320,9 +323,13 @@ it('prepares table, collage, strip, and legacy sections with ordered sources and
     expect(new Set(tokens.map((match) => match[2])).size).toBe(1)
     expect(tokens[0]![1]).toBe(group.layout)
     expect(sources!.match(/License unconfirmed/g)).toHaveLength(group.images.length)
-    expect(group.tableMarkdown).not.toContain('#dsh-layout')
+    expect(group.tableMarkdown).toBeUndefined()
+    expect(group.images[0]).not.toHaveProperty('markdown')
+    expect(group.images[0]).not.toHaveProperty('tableMarkdown')
   }
   expect(topics[3]!.markdown).not.toContain('#dsh-layout')
+  expect(topics[3]!.tableMarkdown).toMatch(/independent.*License unconfirmed/)
+  expect(topics[3]!.images[0]!.tableMarkdown).toMatch(/independent.*License unconfirmed/)
   expect(f.read.mock.calls.filter(([url]) => url.includes('image.so.com'))).toHaveLength(7)
 })
 
@@ -367,6 +374,7 @@ it.each([
     expect(result).toMatchObject({ layout: expectedLayout })
     expect(result!.images).toHaveLength(count)
     expect(result!.markdown.includes('#dsh-layout=strip')).toBe(count === 2)
+    expect(result!.tableMarkdown !== undefined).toBe(expectedLayout === 'single')
     expect(result!.warnings.join()).toContain(`Prepared ${count} of 3`)
   },
 )

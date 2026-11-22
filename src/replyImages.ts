@@ -44,13 +44,21 @@ export interface ImageTopic {
   count?: number
   items?: readonly ImageTopicItem[]
 }
+export interface PreparedImage {
+  title: string
+  sourceUrl: string
+  license: string
+  attachmentId: string
+  markdown?: string
+  tableMarkdown?: string
+}
 export interface PreparedImageTopic {
   topic: string
   layout: ImageLayout
   placement: string
   markdown: string
-  tableMarkdown: string
-  images: (EmbeddedImage & { tableMarkdown: string })[]
+  tableMarkdown?: string
+  images: PreparedImage[]
   warnings: string[]
 }
 export interface EmbeddedImage {
@@ -177,11 +185,20 @@ const renderTopic = (
         : requested === 'collage' && count === 3
           ? 'collage'
           : 'strip'
-  const images = saved.map(({ image }) => ({
+  const singleImages = saved.map(({ image }) => ({
     ...embedded(image),
     tableMarkdown: tableCell(`${imageMarkdown(image)} *Image source: ${image.source}*`),
   }))
-  let markdown = images.map((image) => image.markdown).join('\n\n')
+  const images: PreparedImage[] =
+    layout === 'single'
+      ? singleImages
+      : saved.map(({ image }) => ({
+          title: image.title,
+          sourceUrl: image.sourceUrl,
+          license: image.license,
+          attachmentId: image.attachmentId,
+        }))
+  let markdown = singleImages.map((image) => image.markdown).join('\n\n')
   if (count && layout === 'table') {
     markdown = [
       '| Image | Description | Source and license |',
@@ -210,14 +227,21 @@ const renderTopic = (
     const sources = saved.map(({ image }, index) => `${index + 1}. ${image.source}`).join(' · ')
     markdown = `${row}\n\n*Image sources: ${sources}*`
   }
+  const placement = !count
+    ? 'No image was prepared for this topic; use its warning and continue without an image.'
+    : layout === 'table'
+      ? `Paste this topic's markdown verbatim as a complete Markdown table (including its header row, separator row, and blank lines before and after) immediately after the answer section about "${topic}". Do not unwrap rows, omit the header, or paste images inline.`
+      : layout === 'collage' || layout === 'strip'
+        ? `Paste this topic's markdown verbatim (keeping all images on one line and the *Image sources: ...* line beneath it) immediately after the answer section about "${topic}".`
+        : `Paste this topic's markdown verbatim immediately after the answer section about "${topic}". Use tableMarkdown only inside an existing Markdown table cell, never as a standalone paragraph.`
+  const tableMarkdown =
+    layout === 'single' && count === 1 ? singleImages[0]!.tableMarkdown : undefined
   return {
     topic,
     layout,
-    placement: count
-      ? `Insert this topic's image Markdown immediately after the answer section about "${topic}". Use tableMarkdown only inside a Markdown table cell.`
-      : 'No image was prepared for this topic; use its warning and continue without an image.',
+    placement,
     markdown,
-    tableMarkdown: images.map((image) => image.tableMarkdown).join(' · '),
+    ...(tableMarkdown ? { tableMarkdown } : {}),
     images,
     warnings,
   }

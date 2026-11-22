@@ -6,6 +6,8 @@ const MARKDOWN_IMAGE = /(?:^|_)image(?:_|$)/u
 const NATIVE_IMAGE_BUTTON = /(?:^|_)imageButton(?:_|$)/u
 const COLLAGE_ALT_MARK = '\u200B\u200C'
 const STRIP_ALT_MARK = '\u200B\u200D'
+const SOURCE_CAPTION = /^(?:Image sources?[:：]|图片来源[:：])/iu
+const SOURCE_SEPARATOR = /^[\s·•|,]+$/u
 const cleanAlt = (alt: string) => alt.replace(/[\u200B-\u200D]+$/u, '').trimEnd()
 
 type GalleryLayout = 'collage' | 'strip'
@@ -19,6 +21,15 @@ interface Gallery {
 }
 interface MountedGallery extends Gallery {
   badge?: HTMLButtonElement
+  restore: () => void
+}
+interface SourceListItem {
+  tile: Element
+  image: HTMLImageElement
+  source: HTMLElement
+}
+interface MountedSourceList {
+  items: SourceListItem[]
   restore: () => void
 }
 interface MountedZoom {
@@ -190,8 +201,75 @@ const imageCaption = (block: HTMLParagraphElement) => {
   const emphasis = caption.firstElementChild
   if (emphasis?.tagName !== 'EM' || caption.childElementCount !== 1) return
   if ([...caption.childNodes].some((node) => node !== emphasis && node.textContent?.trim())) return
-  if (/^(?:Image sources?[:：]|图片来源[:：])/i.test(emphasis.textContent?.trim() ?? ''))
-    return caption
+  if (SOURCE_CAPTION.test(emphasis.textContent?.trim() ?? '')) return caption
+}
+
+/** 兜底修复误将多图 tableMarkdown 直接粘贴到段落中的“图 + 来源 · 图 + 来源”排布。 */
+const readSourceList = (block: HTMLParagraphElement): SourceListItem[] | undefined => {
+  if (block.closest('table')) return undefined
+  const items: SourceListItem[] = []
+  let pending: { tile: Element; image: HTMLImageElement } | undefined
+  let expecting: 'tile' | 'source' | 'separator' = 'tile'
+  for (const node of block.childNodes) {
+    if (node.nodeType === Node.COMMENT_NODE) continue
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? ''
+      if (!text.trim()) continue
+      if (expecting === 'separator' && SOURCE_SEPARATOR.test(text)) {
+        expecting = 'tile'
+        continue
+      }
+      return undefined
+    }
+    if (!(node instanceof Element)) return undefined
+    if (expecting === 'source') {
+      if (node.tagName !== 'EM' || !SOURCE_CAPTION.test(node.textContent?.trim() ?? ''))
+        return undefined
+      if (pending && isAvailable(pending.image))
+        items.push({ tile: pending.tile, image: pending.image, source: node as HTMLElement })
+      pending = undefined
+      expecting = 'separator'
+      continue
+    }
+    if (node.textContent?.trim()) return undefined
+    const images = node instanceof HTMLImageElement ? [node] : node.querySelectorAll('img')
+    const image = images[0]
+    if (images.length !== 1 || !image || !markdownImage(image)) return undefined
+    pending = { tile: node, image }
+    expecting = 'source'
+  }
+  if (expecting === 'source' || items.length < 2 || items.length > 6) return undefined
+  return items
+}
+
+const sameSourceList = (current: MountedSourceList, next: SourceListItem[]) =>
+  current.items.length === next.length &&
+  next.every(
+    ({ tile, image, source }, index) =>
+      current.items[index]?.tile === tile &&
+      current.items[index]?.image === image &&
+      current.items[index]?.source === source,
+  )
+
+const mountSourceList = (
+  block: HTMLParagraphElement,
+  items: SourceListItem[],
+): MountedSourceList => {
+  const restore = [
+    setAttributes(block, {
+      'data-reply-image-source-list': '',
+      'data-reply-image-count': String(items.length),
+    }),
+  ]
+  items.forEach(({ tile, source }, index) => {
+    const position = String(index + 1)
+    restore.push(setAttributes(tile, { 'data-reply-image-list-tile': position }))
+    restore.push(setAttributes(source, { 'data-reply-image-list-source': position }))
+  })
+  return {
+    items,
+    restore: () => restore.forEach((reset) => reset()),
+  }
 }
 
 const sameGallery = (current: MountedGallery, next: Gallery) =>
@@ -330,6 +408,7 @@ export const installImageEnhancements = (document: Document): (() => void) => {
   const zoom = new Map<HTMLImageElement, MountedZoom>()
   const nativeImages = new Map<HTMLImageElement, () => void>()
   const galleries = new Map<HTMLParagraphElement, MountedGallery>()
+  const sourceLists = new Map<HTMLParagraphElement, MountedSourceList>()
   const captions = new Map<HTMLParagraphElement, () => void>()
   const directories = new Map<HTMLTableElement, () => void>()
   const markers = new WeakMap<
@@ -461,6 +540,7 @@ export const installImageEnhancements = (document: Document): (() => void) => {
       nativeImages.delete(image)
     }
     const paragraphs = new Set<HTMLParagraphElement>()
+    const sourceListBlocks = new Set<HTMLParagraphElement>()
     const nextCaptions = new Set<HTMLParagraphElement>()
     for (const image of responseImages()) {
       if (!markdownImage(image)) continue
@@ -469,6 +549,7 @@ export const installImageEnhancements = (document: Document): (() => void) => {
       if (block) {
         const caption = imageCaption(block)
         if (caption) nextCaptions.add(caption)
+        if (!block.closest('table')) sourceListBlocks.add(block)
         if (marker || (caption && !block.closest('table'))) paragraphs.add(block)
       }
       const hasNativeButton = nativeImageButton(image) !== null
@@ -524,6 +605,15 @@ export const installImageEnhancements = (document: Document): (() => void) => {
       if (next) galleries.set(block, mountGallery(block, next, hasDialog))
       else galleries.delete(block)
     }
+    for (const block of new Set([...sourceLists.keys(), ...sourceListBlocks])) {
+      const current = sourceLists.get(block)
+      const next =
+        sourceListBlocks.has(block) && !galleries.has(block) ? readSourceList(block) : undefined
+      if (next && current && sameSourceList(current, next)) continue
+      current?.restore()
+      if (next) sourceLists.set(block, mountSourceList(block, next))
+      else sourceLists.delete(block)
+    }
     logSnapshot()
   }
 
@@ -552,6 +642,9 @@ export const installImageEnhancements = (document: Document): (() => void) => {
     const gallery = block ? galleries.get(block) : undefined
     if (gallery?.tiles.some(({ image: tile }) => tile === image))
       return gallery.tiles.map(({ image: tile }) => tile)
+    const sourceList = block ? sourceLists.get(block) : undefined
+    if (sourceList?.items.some(({ image: tile }) => tile === image))
+      return sourceList.items.map(({ image: tile }) => tile)
     const table = image.closest('table')
     if (table)
       return [...table.querySelectorAll('img')].filter(
@@ -661,11 +754,13 @@ export const installImageEnhancements = (document: Document): (() => void) => {
     document.removeEventListener('error', refreshImage, true)
     closeViewer?.()
     for (const gallery of galleries.values()) gallery.restore()
+    for (const list of sourceLists.values()) list.restore()
     for (const [image, control] of zoom) restoreZoom(image, control)
     for (const restore of nativeImages.values()) restore()
     for (const restore of captions.values()) restore()
     for (const restore of directories.values()) restore()
     galleries.clear()
+    sourceLists.clear()
     zoom.clear()
     nativeImages.clear()
     captions.clear()

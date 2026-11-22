@@ -23,7 +23,7 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
     defineTool({
       name: 'reply_images_prepare',
       description: [
-        'Use once whenever real photos, experimental phenomena, diagrams, or visual references make the answer clearer, more intuitive, or more comfortable to read — including science, concepts, history, places, products, organizations, public figures, and comparisons. Do not skip scientific or explanatory topics when real phenomena, experiments, or diagrams can illustrate them. Only skip pure code/debugging, purely symbolic calculation with no visualizable subject, one-line answers, or explicit text-only requests. For a long, multi-section answer with visual value, you must plan 2–3 complementary blocks in one reply_images_prepare call, placed in different sections (do not lump everything into one top block). Never use only single for a long, multi-section answer. Prefer table plus collage or strip. If the answer has any section about key people (关键人物), parties involved (当事人), the founding team (创始团队), or comparisons (对比), you must use layout: "table" with items, one item per person/entity with query, alt, and a short caption. CEOs, CFOs, VPs, and directors of listed companies, government officials, and corporate executives publicly covered by mainstream media are public figures and may be included directly. The tool automatically outputs a — placeholder row for a person without an image. Never abandon table because a person has no photo. Use collage for a core product or one main scene plus two related views of an event or phenomenon; use strip for product interfaces, scenes, experiments, or 3–4 moments or angles of one subject. Reserve single for a standalone visual subject or an additional section highlight. Use concrete photo, experiment, or diagram queries (avoid "logo"/"icon" unless requested). License unconfirmed is normal for search-engine reference images. Never discard a relevant reference image from official sites, encyclopedias, or mainstream media solely because its license is unconfirmed. Retain the actual license metadata; do not claim reuse permission, and honor requests for a documented reusable license. Paste each successful topic.markdown verbatim in its matching section and retain every image link, alt/title marker, and source, author, and license caption. Use tableMarkdown inside existing table cells. Search and image budgets are separate; reduce per-block image counts to fit both remaining budgets.',
+        'Use once whenever real photos, experimental phenomena, diagrams, or visual references make the answer clearer, more intuitive, or more comfortable to read — including science, concepts, history, places, products, organizations, public figures, and comparisons. Do not skip scientific or explanatory topics when real phenomena, experiments, or diagrams can illustrate them. Only skip pure code/debugging, purely symbolic calculation with no visualizable subject, one-line answers, or explicit text-only requests. For a long, multi-section answer with visual value, you must plan 2–3 complementary blocks in one reply_images_prepare call, placed in different sections (do not lump everything into one top block). Never use only single for a long, multi-section answer. Prefer table plus collage or strip. If the answer has any section about key people (关键人物), parties involved (当事人), the founding team (创始团队), or comparisons (对比), you must use layout: "table" with items, one item per person/entity with query, alt, and a short caption. CEOs, CFOs, VPs, and directors of listed companies, government officials, and corporate executives publicly covered by mainstream media are public figures and may be included directly. The tool automatically outputs a — placeholder row for a person without an image. Never abandon table because a person has no photo. Use collage for a core product or one main scene plus two related views of an event or phenomenon; use strip for product interfaces, scenes, experiments, or 3–4 moments or angles of one subject. Reserve single for a standalone visual subject or an additional section highlight. Use concrete photo, experiment, or diagram queries (avoid "logo"/"icon" unless requested). License unconfirmed is normal for search-engine reference images. Never discard a relevant reference image from official sites, encyclopedias, or mainstream media solely because its license is unconfirmed. Retain the actual license metadata; do not claim reuse permission, and honor requests for a documented reusable license. Paste each successful topic.markdown verbatim in its matching section and retain every image link, alt/title marker, and source, author, and license caption. For layout: "table", paste topic.markdown verbatim as a complete Markdown table (keeping its header row, separator row, and surrounding blank lines); never unwrap rows or paste images inline. Use tableMarkdown (only returned for single topics) exclusively inside existing table cells, never as a standalone paragraph. Search and image budgets are separate; reduce per-block image counts to fit both remaining budgets.',
         'Example: {"topics":[{"topic":"People","layout":"table","items":[{"query":"Jensen Huang portrait","alt":"Jensen Huang","caption":"CEO"}]},{"topic":"Products","layout":"collage","query":"Nvidia GPU","alt":"Nvidia GPU"},{"topic":"Scenes","layout":"strip","query":"Nvidia keynote","alt":"Nvidia keynote"}]}',
       ].join('\n'),
       parameters: {
@@ -127,8 +127,8 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                   },
                   tableMarkdown: {
                     type: 'string',
-                    required: true,
-                    description: 'Use only inside a Markdown table cell.',
+                    description:
+                      'Provided only for single-image topics; use exclusively inside an existing Markdown table cell, never as a standalone paragraph.',
                   },
                   images: {
                     type: 'array',
@@ -138,11 +138,15 @@ export const registerImageTools = (ctx: Context, service: ReplyImages): void => 
                       additionalProperties: false,
                       properties: {
                         title: { type: 'string', required: true },
-                        markdown: { type: 'string', required: true },
+                        markdown: {
+                          type: 'string',
+                          description:
+                            'Single-image Markdown (provided only for single-image topics; for table/collage/strip use topics[].markdown).',
+                        },
                         tableMarkdown: {
                           type: 'string',
-                          required: true,
-                          description: 'Single-line image and attribution for a table cell.',
+                          description:
+                            'Single-line image and attribution for an existing table cell (provided only for single-image topics).',
                         },
                         sourceUrl: { type: 'string', required: true },
                         license: { type: 'string', required: true },
