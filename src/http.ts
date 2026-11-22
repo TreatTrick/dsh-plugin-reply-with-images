@@ -19,17 +19,26 @@ export type HttpRead = (
   options: HttpOptions,
 ) => Promise<HttpResult>
 
-/** Fake-IP requires an explicit proxy DNS opt-in; other special addresses remain blocked. */
+const isFakeIpAddress = (parsed: ipaddr.IPv4 | ipaddr.IPv6): boolean =>
+  parsed.kind() === 'ipv4'
+    ? parsed.match(ipaddr.parse('198.18.0.0'), 15)
+    : parsed.match(ipaddr.parse('2001:2::'), 48)
+
+/** Allow public unicast addresses, plus proxy Fake-IP ranges when enabled; other special addresses remain blocked. */
 export const allowedAddress = (address: string, allowFakeIpDns = false): boolean => {
   const parsed = ipaddr.process(address)
   if (parsed.range() === 'unicast') return true
-  return (
-    allowFakeIpDns &&
-    (parsed.kind() === 'ipv4'
-      ? parsed.match(ipaddr.parse('198.18.0.0'), 15)
-      : parsed.match(ipaddr.parse('2001:2::'), 48))
-  )
+  return allowFakeIpDns && isFakeIpAddress(parsed)
 }
+
+const deniedAddressError = (addresses: readonly string[], allowFakeIpDns?: boolean): Error =>
+  !allowFakeIpDns &&
+  addresses.length > 0 &&
+  addresses.every((address) => allowedAddress(address, true))
+    ? new Error(
+        'Access to Fake-IP DNS addresses is disabled; set allowFakeIpDns: true to allow proxy Fake-IP resolution',
+      )
+    : new Error('Access to private network addresses is denied')
 
 /** Pin HTTPS downloads to validated public DNS results and revalidate every redirect. */
 export const readHttp: HttpRead = async (address, signal, options) => {
@@ -44,11 +53,9 @@ export const readHttp: HttpRead = async (address, signal, options) => {
       target.port
     )
       throw new Error('Unsupported image source URL')
-    if (
-      ipaddr.isValid(target.hostname.replace(/^\[|\]$/g, '')) &&
-      !allowedAddress(target.hostname.replace(/^\[|\]$/g, ''), options.allowFakeIpDns)
-    )
-      throw new Error('Access to private network addresses is denied')
+    const literalHost = target.hostname.replace(/^\[|\]$/g, '')
+    if (ipaddr.isValid(literalHost) && !allowedAddress(literalHost, options.allowFakeIpDns))
+      throw deniedAddressError([literalHost], options.allowFakeIpDns)
     return new Promise((resolve, reject) => {
       const request = get(
         url,
@@ -72,7 +79,13 @@ export const readHttp: HttpRead = async (address, signal, options) => {
                 allowedAddress(value.address, options.allowFakeIpDns),
               )
               if (publicAddresses.length !== addresses.length || publicAddresses.length === 0) {
-                callback(new Error('Access to private network addresses is denied'), [])
+                callback(
+                  deniedAddressError(
+                    addresses.map((value) => value.address),
+                    options.allowFakeIpDns,
+                  ),
+                  [],
+                )
                 return
               }
               if (dnsOptions.all) callback(null, publicAddresses)

@@ -19,7 +19,7 @@ const configSchema = z
     maxImageBytes: positive.max(20 * 1024 * 1024).default(5 * 1024 * 1024),
     maxSearchBytes: positive.max(10 * 1024 * 1024).default(3 * 1024 * 1024),
     automatic: z.boolean().default(true),
-    allowFakeIpDns: z.boolean().default(false),
+    allowFakeIpDns: z.boolean().default(true),
     publicBaseUrl: z.string().default(''),
     debugLog: z.boolean().default(true),
     debugLogPath: z.string().default(''),
@@ -79,7 +79,7 @@ export const Config: Schema<Config> = Schema.object({
     .default(true)
     .description('Add images automatically when they aid understanding'),
   allowFakeIpDns: Schema.boolean()
-    .default(false)
+    .default(true)
     .description(
       'Support proxy Fake-IP DNS by additionally allowing only 198.18.0.0/15 and 2001:2::/48',
     ),

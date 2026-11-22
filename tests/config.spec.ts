@@ -12,7 +12,8 @@ it('defaults to Bing first and retains bounded image and network budgets', () =>
     debugLog: false,
     debugLogPath: './diag.jsonl',
   })
-  expect(config.allowFakeIpDns).toBe(false)
+  expect(config.allowFakeIpDns).toBe(true)
+  expect(resolveConfig(Config({ allowFakeIpDns: false })).allowFakeIpDns).toBe(false)
   expect(resolveConfig(Config({}))).toEqual(config)
 })
 

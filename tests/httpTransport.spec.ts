@@ -218,6 +218,77 @@ it.each([true, false])(
   },
 )
 
+it('allows Fake-IP DNS addresses when allowFakeIpDns is true and hints when disabled', async () => {
+  const fakeIpAddresses: DnsAddress[] = [
+    { address: '198.18.0.211', family: 4 },
+    { address: '2001:2::c9', family: 6 },
+  ]
+  mocks.lookup.mockImplementation(
+    (
+      _host: string,
+      _options: object,
+      callback: (error: Error | null, values: DnsAddress[]) => void,
+    ) => callback(null, fakeIpAddresses),
+  )
+  mocks.get.mockImplementation(
+    (
+      _url: string,
+      requestOptions: RequestOptions,
+      callback: (res: ReturnType<typeof response>) => void,
+    ) => {
+      const request = new RequestStub()
+      queueMicrotask(() =>
+        requestOptions.lookup('img1.baidu.com', { all: true }, (error, result) => {
+          if (error) {
+            request.destroy(error)
+            return
+          }
+          expect(result).toEqual(fakeIpAddresses)
+          const res = response()
+          res.once('close', () => request.emit('close'))
+          callback(res)
+          res.end(Buffer.from([7]))
+        }),
+      )
+      return request
+    },
+  )
+
+  expect(
+    (
+      await readHttp('https://img1.baidu.com/a', new AbortController().signal, {
+        ...options,
+        allowFakeIpDns: true,
+      })
+    ).data,
+  ).toEqual(Buffer.from([7]))
+
+  await expect(
+    readHttp('https://img1.baidu.com/a', new AbortController().signal, {
+      ...options,
+      allowFakeIpDns: false,
+    }),
+  ).rejects.toThrow('allowFakeIpDns')
+
+  mocks.lookup.mockImplementation(
+    (
+      _host: string,
+      _options: object,
+      callback: (error: Error | null, values: DnsAddress[]) => void,
+    ) =>
+      callback(null, [
+        { address: '198.18.0.211', family: 4 },
+        { address: '127.0.0.1', family: 4 },
+      ]),
+  )
+  await expect(
+    readHttp('https://img1.baidu.com/a', new AbortController().signal, {
+      ...options,
+      allowFakeIpDns: true,
+    }),
+  ).rejects.toThrow('private network')
+})
+
 it('propagates DNS resolution errors without handling a response', async () => {
   mocks.lookup.mockImplementation(
     (_host: string, _options: object, callback: (error: Error, values: DnsAddress[]) => void) =>

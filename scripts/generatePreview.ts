@@ -30,7 +30,7 @@ await ctx.plugin(LocalAttachmentStore, { dshHome: previewHome })
 const dataUrls = new Map<string, string>()
 const service = new ReplyImages(
   resolveConfig({
-    allowFakeIpDns: process.argv.includes('--allow-fake-ip-dns'),
+    allowFakeIpDns: !process.argv.includes('--no-fake-ip-dns'),
     maxCandidates: 4,
   }),
   {
